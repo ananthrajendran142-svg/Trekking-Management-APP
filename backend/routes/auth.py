@@ -41,6 +41,7 @@ def register():
     try:
         from persistent_store import save_registered_user
         save_registered_user({
+            'id': user.id,
             'name': name,
             'email': email,
             'phone': phone,
@@ -50,7 +51,7 @@ def register():
     except Exception as e:
         print(f"Error saving to persistent store: {e}")
 
-    access_token = create_access_token(identity=str(user.id))
+    access_token = create_access_token(identity=user.email)
 
     return jsonify({
         'message': 'Account created successfully.',
@@ -102,7 +103,7 @@ def login():
     if user.status == 'deactivated':
         return jsonify({'error': 'Account deactivated. Please contact support.'}), 403
 
-    access_token = create_access_token(identity=str(user.id))
+    access_token = create_access_token(identity=user.email)
 
     return jsonify({
         'message': 'Login successful.',
@@ -113,39 +114,12 @@ def login():
 @auth_bp.route('/me', methods=['GET'])
 @jwt_required()
 def me():
-    current_user_id_raw = get_jwt_identity()
-    user = None
-
-    try:
-        current_user_id = int(current_user_id_raw)
-        user = User.query.get(current_user_id)
-    except (ValueError, TypeError):
-        pass
-
-    if not user and isinstance(current_user_id_raw, str):
-        user = User.query.filter_by(email=current_user_id_raw).first()
-
-    # Restore user profile from persistent store if new deployment wiped /tmp SQLite
-    if not user:
-        try:
-            from persistent_store import load_registered_users
-            custom_users = load_registered_users()
-            for c_user in custom_users:
-                if str(c_user.get('id')) == str(current_user_id_raw) or c_user.get('email') == str(current_user_id_raw):
-                    user = User(
-                        name=c_user.get('name', 'User'),
-                        email=c_user.get('email', 'user@example.com'),
-                        phone=c_user.get('phone', ''),
-                        role=c_user.get('role', 'trekker'),
-                        status='active'
-                    )
-                    db.session.add(user)
-                    db.session.commit()
-                    break
-        except Exception as e:
-            print(f"Error restoring user in /me: {e}")
+    from auth_helper import resolve_current_user
+    current_user_raw = get_jwt_identity()
+    user = resolve_current_user(current_user_raw)
 
     if not user:
         return jsonify({'error': 'User not found.'}), 404
 
     return jsonify({'user': user.to_dict()}), 200
+

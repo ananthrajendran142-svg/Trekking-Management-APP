@@ -97,7 +97,11 @@ export default function GuideMessages() {
 
     try {
       // 1. Post to REST API (ensures DB save & broadcasts to room)
-      const resp = await api.post(`/chat/${selectedTrekId}/send`, { content });
+      const resp = await api.post(`/chat/${selectedTrekId}/send`, {
+        content,
+        sender_email: user?.email,
+        sender_id: user?.id
+      });
       const savedMsg = resp.data;
 
       // 2. Append to local state if not already delivered by socket
@@ -110,7 +114,8 @@ export default function GuideMessages() {
       if (socket && socket.connected) {
         socket.emit('send_chat', {
           trek_id: selectedTrekId,
-          sender_id: user.id,
+          sender_id: user?.id,
+          sender_email: user?.email,
           content
         });
       }
@@ -159,17 +164,17 @@ export default function GuideMessages() {
         <div className="flex-1 p-6 overflow-y-auto space-y-4 bg-slate-50/50">
           {messages.length > 0 ? (
             messages.map((m, idx) => {
-              const isMe = m.sender_id === user?.id;
+              const isMe = m.sender_id === user?.id || (m.sender_name && user?.name && m.sender_name.toLowerCase() === user.name.toLowerCase());
               return (
                 <div key={idx} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                   <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-semibold mb-1">
-                    <span>{m.sender_name}</span>
+                    <span>{m.sender_name || (isMe ? user?.name : 'User')}</span>
                     <span className={`uppercase text-[9px] px-1.5 py-0.5 rounded ${
-                      m.sender_role === 'guide' ? 'bg-amber-100 text-amber-900 font-bold' :
-                      m.sender_role === 'admin' ? 'bg-purple-100 text-purple-900 font-bold' :
+                      (m.sender_role || (isMe ? user?.role : 'trekker')) === 'guide' ? 'bg-amber-100 text-amber-900 font-bold' :
+                      (m.sender_role || (isMe ? user?.role : 'trekker')) === 'admin' ? 'bg-purple-100 text-purple-900 font-bold' :
                       'bg-slate-200 text-slate-700'
                     }`}>
-                      {m.sender_role}
+                      {m.sender_role || (isMe ? user?.role : 'trekker')}
                     </span>
                   </div>
                   <div
@@ -184,6 +189,7 @@ export default function GuideMessages() {
                 </div>
               );
             })
+
           ) : (
             <div className="text-center text-slate-400 text-xs py-24 italic space-y-2">
               <MessageSquare className="w-8 h-8 text-slate-300 mx-auto" />

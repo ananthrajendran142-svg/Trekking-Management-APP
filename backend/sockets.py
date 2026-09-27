@@ -22,17 +22,19 @@ def handle_leave_room(data):
 def handle_send_chat(data):
     try:
         trek_id = int(data.get('trek_id'))
-        sender_id = int(data.get('sender_id'))
+        sender_id = data.get('sender_id')
+        sender_email = data.get('sender_email')
         content = data.get('content', '').strip()
 
-        if not trek_id or not sender_id or not content:
+        if not trek_id or not content:
             return
 
-        user = User.query.get(sender_id)
+        from auth_helper import resolve_current_user
+        user = resolve_current_user(None, payload_email=sender_email, payload_id=sender_id)
         if not user:
             return
 
-        msg = Message(trek_id=trek_id, sender_id=sender_id, content=content)
+        msg = Message(trek_id=trek_id, sender_id=user.id, content=content)
         db.session.add(msg)
         db.session.commit()
         db.session.refresh(msg)
@@ -42,6 +44,7 @@ def handle_send_chat(data):
         emit('receive_chat', msg_dict, room=room)
     except Exception as e:
         print("Socket send_chat error:", e)
+
 
 @socketio.on('send_gps')
 def handle_send_gps(data):
