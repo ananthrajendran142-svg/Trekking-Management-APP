@@ -55,7 +55,22 @@ export default function TrekDetails() {
           api.get(`/reviews/${id}`).catch(() => ({ data: [] }))
         ]);
         if (weatherResp.data) setWeather(weatherResp.data);
-        if (reviewsResp.data) setReviews(reviewsResp.data);
+        let revList = Array.isArray(reviewsResp?.data) ? reviewsResp.data : [];
+
+        // Merge local custom reviews
+        try {
+          const savedRevs = localStorage.getItem('trekmate_custom_reviews');
+          if (savedRevs) {
+            const localRevs = JSON.parse(savedRevs);
+            localRevs.forEach(lr => {
+              if (String(lr.trek_id) === String(id) && !revList.some(r => r.id === lr.id)) {
+                revList.unshift(lr);
+              }
+            });
+          }
+        } catch (e) {}
+
+        setReviews(revList);
       } catch (e) {
         console.error(e);
       }
@@ -238,6 +253,78 @@ export default function TrekDetails() {
               Meeting point: <strong className="text-navy-900">{trek.meeting_point || 'Base village campsite'}</strong>
             </p>
             <TrekMap lat={trek.latitude} lng={trek.longitude} zoom={11} height="300px" />
+          </div>
+
+          {/* Reviews Section */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-navy-900 flex items-center gap-2">
+                  <Star className="w-5 h-5 text-amber-500 fill-amber-400" />
+                  <span>Trekker Reviews & Ratings</span>
+                </h2>
+                <p className="text-xs text-slate-500">Verified reviews from completed expedition participants</p>
+              </div>
+
+              {user && user.role === 'trekker' && (
+                <Link
+                  to={`/trekker/reviews?trek_id=${trek.id}`}
+                  className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1.5"
+                >
+                  <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
+                  <span>Write / Edit Review</span>
+                </Link>
+              )}
+            </div>
+
+            {reviews.length > 0 ? (
+              <div className="space-y-4">
+                {reviews.map((r, idx) => (
+                  <div key={r.id || idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-navy-900 text-trek-gold font-extrabold flex items-center justify-center text-xs">
+                          {(r.user_name || 'Trekker').charAt(0)}
+                        </div>
+                        <span className="text-xs font-bold text-navy-900">{r.user_name || 'Verified Trekker'}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map(s => (
+                          <Star
+                            key={s}
+                            className={`w-3.5 h-3.5 ${s <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+
+                    <p className="text-xs text-slate-700 leading-relaxed font-medium pl-9">
+                      "{r.comment}"
+                    </p>
+
+                    {r.created_at && (
+                      <div className="text-[10px] text-slate-400 text-right font-mono">
+                        {new Date(r.created_at).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                <Star className="w-8 h-8 text-slate-300 mx-auto" />
+                <p className="text-xs text-slate-500 font-medium">No reviews written for this expedition yet.</p>
+                {user && (
+                  <Link
+                    to={`/trekker/reviews?trek_id=${trek.id}`}
+                    className="inline-block text-xs font-bold text-trek-blue hover:underline pt-1"
+                  >
+                    Be the first to leave a review →
+                  </Link>
+                )}
+              </div>
+            )}
           </div>
 
         </div>

@@ -114,7 +114,27 @@ def get_bookings():
         query = query.filter_by(booking_status=status)
 
     bookings = query.order_by(Booking.id.desc()).all()
-    return jsonify([b.to_dict() for b in bookings]), 200
+    
+    # Check custom persistent store for completed trek status overrides
+    completed_trek_ids = set()
+    try:
+        from persistent_store import load_custom_treks
+        custom_treks = load_custom_treks()
+        for ct in custom_treks:
+            if ct.get('status') == 'completed':
+                completed_trek_ids.add(str(ct.get('id')))
+    except Exception:
+        pass
+
+    result = []
+    for b in bookings:
+        b_dict = b.to_dict()
+        if (b.trek and b.trek.status == 'completed') or str(b.trek_id) in completed_trek_ids:
+            if b_dict['booking_status'] != 'cancelled':
+                b_dict['booking_status'] = 'completed'
+        result.append(b_dict)
+
+    return jsonify(result), 200
 
 @bookings_bp.route('/<int:booking_id>', methods=['GET'])
 @jwt_required()

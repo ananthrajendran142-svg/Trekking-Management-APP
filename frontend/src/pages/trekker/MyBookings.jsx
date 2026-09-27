@@ -16,14 +16,41 @@ export default function MyBookings() {
 
   const fetchBookings = async () => {
     setLoading(true);
+    let bkList = [];
     try {
       const resp = await api.get('/bookings');
-      setBookings(resp.data);
+      bkList = resp.data || [];
     } catch (err) {
       console.error("Fetch bookings error:", err);
-    } finally {
-      setLoading(false);
     }
+
+    try {
+      const saved = localStorage.getItem('trekmate_custom_treks');
+      if (saved) {
+        const customTreks = JSON.parse(saved);
+        const completedMap = new Map();
+        customTreks.forEach(ct => {
+          if (ct.status === 'completed') {
+            completedMap.set(String(ct.id), true);
+            completedMap.set(ct.name, true);
+          }
+        });
+
+        bkList = bkList.map(b => {
+          if (completedMap.has(String(b.trek_id)) || completedMap.has(b.trek_name)) {
+            if (b.booking_status !== 'cancelled') {
+              return { ...b, booking_status: 'completed' };
+            }
+          }
+          return b;
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    setBookings(bkList);
+    setLoading(false);
   };
 
   const handleCancelBooking = async (bookingId) => {

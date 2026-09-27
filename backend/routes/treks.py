@@ -294,12 +294,13 @@ def update_trek_status(trek_id):
             trek.guide_id = user.id
 
         if new_status in ['active', 'cancelled', 'completed']:
-            for booking in trek.bookings:
+            all_bookings = Booking.query.filter_by(trek_id=trek.id).all()
+            for booking in all_bookings:
                 if booking.booking_status != 'cancelled':
                     notif = Notification(
                         user_id=booking.user_id,
                         title=f"Trek Status Update: {trek.name}",
-                        message=f"The status of your trek '{trek.name}' is now '{new_status.upper()}'.",
+                        message=f"The status of your trek '{trek.name}' is now '{new_status.upper()}'. Review forms are now unlocked!",
                         type="trek"
                     )
                     db.session.add(notif)
