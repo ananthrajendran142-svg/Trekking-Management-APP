@@ -99,14 +99,29 @@ export default function MyBookings() {
                   <strong className="text-navy-900">{b.num_participants} Slot(s)</strong>
                 </div>
                 <div>
-                  <span className="text-slate-400 block">Total Paid</span>
+                  <span className="text-slate-400 block">Total Amount</span>
                   <strong className="text-navy-900">${b.total_price}</strong>
                 </div>
                 <div>
                   <span className="text-slate-400 block">Payment Status</span>
-                  <strong className="text-emerald-600 uppercase">{b.payment_status}</strong>
+                  <strong className={`uppercase text-[11px] font-extrabold ${b.payment_status === 'paid' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {b.payment_status === 'paid' ? 'PAID / APPROVED ✓' : 'PENDING APPROVAL'}
+                  </strong>
                 </div>
               </div>
+
+              {b.payment_status === 'paid' ? (
+                <div className="px-3 py-1.5 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-xl text-[11px] font-bold flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Payment Verified & Approved by Expedition Guide</span>
+                </div>
+              ) : (
+                <div className="px-3 py-1.5 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl text-[11px] font-bold flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                  <span>Payment Pending Guide Verification</span>
+                </div>
+              )}
+
 
               <div className="flex items-center justify-between pt-1">
                 <Link

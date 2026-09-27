@@ -178,23 +178,36 @@ export default function LiveMonitoring() {
 
           {locations.length > 0 ? (
             <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
-              {locations.map(loc => (
-                <div key={loc.id || loc.user_id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 hover:bg-slate-100/80 transition">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-navy-900">{loc.user_name || 'Participant'}</span>
-                    <span className="text-[10px] font-mono text-slate-400">
-                      {loc.updated_at ? loc.updated_at.slice(11, 16) : 'Just now'}
-                    </span>
+              {locations.map(loc => {
+                const batt = loc.battery_level !== undefined ? loc.battery_level : 100;
+                const isLowBatt = batt < 20;
+                return (
+                  <div key={loc.id || loc.user_id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 hover:bg-slate-100/80 transition">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-bold text-navy-900 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        {loc.user_name || 'Participant'}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {loc.updated_at ? loc.updated_at.slice(11, 16) : 'Just now'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-slate-600">
+                      <div>Lat: {formatCoord(loc.latitude)}° N</div>
+                      <div>Lng: {formatCoord(loc.longitude)}° E</div>
+                      <div>Alt: {loc.altitude || 0}m</div>
+                      <div className="flex items-center gap-1 font-bold">
+                        <Battery className={`w-3.5 h-3.5 ${batt > 50 ? 'text-emerald-500' : batt > 20 ? 'text-amber-500' : 'text-red-500'}`} />
+                        <span className={isLowBatt ? 'text-red-600 font-extrabold' : 'text-navy-900'}>
+                          Batt: {batt}%
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-slate-600">
-                    <div>Lat: {formatCoord(loc.latitude)}°</div>
-                    <div>Lng: {formatCoord(loc.longitude)}°</div>
-                    <div>Alt: {loc.altitude || 0}m</div>
-                    <div>Batt: {loc.battery_level || 100}%</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
           ) : (
             <div className="text-xs text-slate-400 py-16 text-center italic space-y-2">
               <Radio className="w-8 h-8 text-slate-300 mx-auto animate-pulse" />

@@ -151,6 +151,15 @@ def update_booking(booking_id):
     if payment_status:
         booking.payment_status = payment_status
 
+    if payment_status == 'paid':
+        notif = Notification(
+            user_id=booking.user_id,
+            title="Payment Approved! 🎉",
+            message=f"Your guide approved payment for '{booking.trek.name if booking.trek else 'Trek'}'. Your slot is fully confirmed!",
+            type="booking"
+        )
+        db.session.add(notif)
+
     db.session.commit()
     return jsonify({'message': 'Booking updated successfully.', 'booking': booking.to_dict()}), 200
 
@@ -162,7 +171,21 @@ def get_participants(trek_id):
         return jsonify({'error': 'Trek not found.'}), 404
 
     participants = Participant.query.filter_by(trek_id=trek_id).all()
-    return jsonify([p.to_dict() for p in participants]), 200
+    res = []
+    for p in participants:
+        p_dict = p.to_dict()
+        booking = Booking.query.get(p.booking_id)
+        if booking:
+            p_dict['booking_id'] = booking.id
+            p_dict['payment_status'] = booking.payment_status
+            p_dict['booking_status'] = booking.booking_status
+            p_dict['total_price'] = booking.total_price
+            p_dict['num_participants'] = booking.num_participants
+        else:
+            p_dict['payment_status'] = 'paid'
+        res.append(p_dict)
+
+    return jsonify(res), 200
 
 @bookings_bp.route('/participants/<int:participant_id>/status', methods=['PUT'])
 @jwt_required()
@@ -184,3 +207,4 @@ def update_participant_status(participant_id):
 
     db.session.commit()
     return jsonify({'message': 'Participant status updated.', 'participant': participant.to_dict()}), 200
+

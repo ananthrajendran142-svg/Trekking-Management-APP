@@ -54,6 +54,17 @@ export default function ParticipantManagement() {
     }
   };
 
+  const handleApprovePayment = async (participant) => {
+    if (!participant.booking_id) return;
+    setParticipants(prev => prev.map(p => p.id === participant.id ? { ...p, payment_status: 'paid' } : p));
+    try {
+      await api.put(`/bookings/${participant.booking_id}`, { payment_status: 'paid', booking_status: 'upcoming' });
+      fetchParticipants(selectedTrekId);
+    } catch (err) {
+      console.error("Approve payment error:", err);
+    }
+  };
+
   if (loading) return <LoadingSpinner message="Loading expedition rosters..." />;
 
   const currentTrek = treks.find(t => t.id === selectedTrekId);
@@ -99,6 +110,7 @@ export default function ParticipantManagement() {
                 <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   <th className="p-4">Participant Name</th>
                   <th className="p-4">Contact Information</th>
+                  <th className="p-4">Payment Status</th>
                   <th className="p-4">Check-In Status</th>
                   <th className="p-4">Telemetry Status</th>
                   <th className="p-4 text-right">Actions</th>
@@ -116,6 +128,13 @@ export default function ParticipantManagement() {
                     </td>
                     <td className="p-4">
                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                        p.payment_status === 'paid' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-100 text-amber-900 border border-amber-300'
+                      }`}>
+                        {p.payment_status === 'paid' ? 'APPROVED / PAID ✓' : 'PENDING APPROVAL'}
+                      </span>
+                    </td>
+                    <td className="p-4">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
                         p.check_in_status === 'checked_in' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                       }`}>
                         {p.check_in_status}
@@ -127,6 +146,14 @@ export default function ParticipantManagement() {
                       </span>
                     </td>
                     <td className="p-4 text-right space-x-2">
+                      {p.payment_status !== 'paid' && p.booking_id && (
+                        <button
+                          onClick={() => handleApprovePayment(p)}
+                          className="px-3 py-1.5 bg-trek-gold hover:bg-amber-400 text-navy-900 font-extrabold rounded-lg text-[11px] transition shadow inline-flex items-center gap-1"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5 text-navy-900" /> Approve Payment
+                        </button>
+                      )}
                       {p.check_in_status !== 'checked_in' ? (
                         <button
                           onClick={() => handleUpdateCheckIn(p.id, 'checked_in')}
