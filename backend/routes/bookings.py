@@ -115,14 +115,25 @@ def get_bookings():
 
     bookings = query.order_by(Booking.id.desc()).all()
     
-    # Check custom persistent store for completed trek status overrides
+    # Check DB and custom persistent store for completed trek status overrides
     completed_trek_ids = set()
     completed_trek_names = set()
+
+    try:
+        db_completed = Trek.query.filter(Trek.status.ilike('completed')).all()
+        for dt in db_completed:
+            if dt.id:
+                completed_trek_ids.add(str(dt.id))
+            if dt.name:
+                completed_trek_names.add(str(dt.name).strip().lower())
+    except Exception:
+        pass
+
     try:
         from persistent_store import load_custom_treks
         custom_treks = load_custom_treks()
         for ct in custom_treks:
-            if ct.get('status') == 'completed':
+            if str(ct.get('status')).lower() == 'completed':
                 if ct.get('id'):
                     completed_trek_ids.add(str(ct.get('id')))
                 if ct.get('name'):
@@ -134,12 +145,16 @@ def get_bookings():
     for b in bookings:
         b_dict = b.to_dict()
         b_name = str(b_dict.get('trek_name', '')).strip().lower()
-        if (b.trek and b.trek.status == 'completed') or str(b.trek_id) in completed_trek_ids or (b_name and b_name in completed_trek_names):
-            if b_dict['booking_status'] != 'cancelled':
-                b_dict['booking_status'] = 'completed'
-                if b.booking_status != 'completed':
-                    b.booking_status = 'completed'
-                    db.session.commit()
+        is_completed = (
+            (b.trek and str(b.trek.status).lower() == 'completed') or
+            str(b.trek_id) in completed_trek_ids or
+            (b_name and b_name in completed_trek_names)
+        )
+        if is_completed and b_dict['booking_status'] != 'cancelled':
+            b_dict['booking_status'] = 'completed'
+            if b.booking_status != 'completed':
+                b.booking_status = 'completed'
+                db.session.commit()
         result.append(b_dict)
 
     return jsonify(result), 200

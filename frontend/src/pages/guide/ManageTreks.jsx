@@ -52,14 +52,14 @@ export default function ManageTreks() {
     setLoading(false);
   };
 
-  const handleStatusChange = async (trekId, newStatus) => {
+  const handleStatusChange = async (trekId, newStatus, trekName) => {
     // 1. Immediately update UI state & local storage
-    setTreks(prev => prev.map(t => String(t.id) === String(trekId) ? { ...t, status: newStatus } : t));
+    setTreks(prev => prev.map(t => (String(t.id) === String(trekId) || t.name === trekName) ? { ...t, status: newStatus } : t));
     try {
       const saved = localStorage.getItem('trekmate_custom_treks');
       if (saved) {
         let list = JSON.parse(saved);
-        list = list.map(t => String(t.id) === String(trekId) ? { ...t, status: newStatus } : t);
+        list = list.map(t => (String(t.id) === String(trekId) || t.name === trekName) ? { ...t, status: newStatus } : t);
         localStorage.setItem('trekmate_custom_treks', JSON.stringify(list));
       }
       window.dispatchEvent(new Event('trekmate_treks_updated'));
@@ -67,9 +67,9 @@ export default function ManageTreks() {
       console.error(e);
     }
 
-    // 2. Notify backend
+    // 2. Notify backend with trekId, newStatus, and trekName
     try {
-      await api.put(`/treks/${trekId}/status`, { status: newStatus });
+      await api.put(`/treks/${trekId}/status`, { status: newStatus, name: trekName });
       window.dispatchEvent(new Event('trekmate_treks_updated'));
     } catch (err) {
       console.warn("Backend status change warning, proceeding with local state:", err);
@@ -137,18 +137,25 @@ export default function ManageTreks() {
                     </td>
                     <td className="p-4 font-bold">${t.price}</td>
                     <td className="p-4">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
-                        t.status === 'active' ? 'bg-emerald-100 text-emerald-800' :
-                        t.status === 'completed' ? 'bg-blue-100 text-blue-800' :
-                        t.status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'
-                      }`}>
-                        {t.status}
-                      </span>
+                      <select
+                        value={t.status || 'published'}
+                        onChange={(e) => handleStatusChange(t.id, e.target.value, t.name)}
+                        className={`px-3 py-1 rounded-full text-[10px] font-extrabold uppercase focus:outline-none border cursor-pointer ${
+                          t.status === 'active' ? 'bg-emerald-100 text-emerald-800 border-emerald-300' :
+                          t.status === 'completed' ? 'bg-blue-100 text-blue-800 border-blue-300' :
+                          t.status === 'cancelled' ? 'bg-red-100 text-red-800 border-red-300' : 'bg-slate-100 text-slate-700 border-slate-300'
+                        }`}
+                      >
+                        <option value="published">Published</option>
+                        <option value="active">Active / In Progress</option>
+                        <option value="completed">Completed ✓</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
                     </td>
                     <td className="p-4 text-right space-x-2">
                       {t.status === 'published' && (
                         <button
-                          onClick={() => handleStatusChange(t.id, 'active')}
+                          onClick={() => handleStatusChange(t.id, 'active', t.name)}
                           className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[11px] transition"
                         >
                           Start Trek
@@ -156,7 +163,7 @@ export default function ManageTreks() {
                       )}
                       {t.status === 'active' && (
                         <button
-                          onClick={() => handleStatusChange(t.id, 'completed')}
+                          onClick={() => handleStatusChange(t.id, 'completed', t.name)}
                           className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg text-[11px] transition"
                         >
                           End Trek

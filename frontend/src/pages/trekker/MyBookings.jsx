@@ -24,40 +24,47 @@ export default function MyBookings() {
   const fetchBookings = async () => {
     setLoading(true);
     let bkList = [];
+    let apiTreks = [];
     try {
-      const resp = await api.get('/bookings');
-      bkList = resp.data || [];
+      const [bookResp, treksResp] = await Promise.all([
+        api.get('/bookings').catch(() => ({ data: [] })),
+        api.get('/treks').catch(() => ({ data: [] }))
+      ]);
+      bkList = bookResp.data || [];
+      apiTreks = treksResp.data || [];
     } catch (err) {
       console.error("Fetch bookings error:", err);
     }
 
+    let customTreks = [];
     try {
       const saved = localStorage.getItem('trekmate_custom_treks');
       if (saved) {
-        const customTreks = JSON.parse(saved);
-        const completedIds = new Set();
-        const completedNames = new Set();
-        customTreks.forEach(ct => {
-          if (ct.status === 'completed') {
-            if (ct.id) completedIds.add(String(ct.id));
-            if (ct.name) completedNames.add(ct.name.trim().toLowerCase());
-          }
-        });
-
-        bkList = bkList.map(b => {
-          const bIdStr = String(b.trek_id);
-          const bNameStr = String(b.trek_name || '').trim().toLowerCase();
-          if (completedIds.has(bIdStr) || completedNames.has(bNameStr)) {
-            if (b.booking_status !== 'cancelled') {
-              return { ...b, booking_status: 'completed' };
-            }
-          }
-          return b;
-        });
+        customTreks = JSON.parse(saved);
       }
-    } catch (e) {
-      console.error(e);
-    }
+    } catch (e) {}
+
+    const allTreks = [...apiTreks, ...customTreks];
+    const completedIds = new Set();
+    const completedNames = new Set();
+
+    allTreks.forEach(ct => {
+      if (ct.status === 'completed') {
+        if (ct.id != null) completedIds.add(String(ct.id));
+        if (ct.name) completedNames.add(ct.name.trim().toLowerCase());
+      }
+    });
+
+    bkList = bkList.map(b => {
+      const bIdStr = String(b.trek_id);
+      const bNameStr = String(b.trek_name || '').trim().toLowerCase();
+      if (completedIds.has(bIdStr) || completedNames.has(bNameStr)) {
+        if (b.booking_status !== 'cancelled') {
+          return { ...b, booking_status: 'completed' };
+        }
+      }
+      return b;
+    });
 
     setBookings(bkList);
     setLoading(false);
