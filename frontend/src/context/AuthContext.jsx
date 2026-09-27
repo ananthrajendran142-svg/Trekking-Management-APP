@@ -125,7 +125,7 @@ export const AuthProvider = ({ children }) => {
   const register = async (name, email, password, confirm_password, phone, role) => {
     const cleanEmail = email.trim().toLowerCase();
 
-    // Store registered account locally
+    // Store registered account locally for offline cache fallback
     const newAcc = {
       id: Date.now(),
       name,
@@ -152,21 +152,9 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       return userData;
     } catch (serverErr) {
-      console.warn("Server register returned error, completing local registration:", serverErr);
-      const userData = {
-        id: newAcc.id,
-        name: newAcc.name,
-        email: newAcc.email,
-        phone: newAcc.phone,
-        role: newAcc.role,
-        status: 'active'
-      };
-      const mockToken = `mock-token-${Date.now()}`;
-      localStorage.setItem('trekmate_token', mockToken);
-      localStorage.setItem('trekmate_user', JSON.stringify(userData));
-      setToken(mockToken);
-      setUser(userData);
-      return userData;
+      console.warn("Server register returned error:", serverErr);
+      const serverErrMsg = serverErr.response?.data?.error;
+      throw new Error(typeof serverErrMsg === 'string' ? serverErrMsg : 'Registration failed. Please try again.');
     }
   };
 
