@@ -20,13 +20,15 @@ export default function LandingPage() {
   const fetchLandingData = async () => {
     try {
       const [treksResp, reviewsResp] = await Promise.all([
-        api.get('/treks'),
-        api.get('/reviews')
+        api.get('/treks').catch(() => ({ data: [] })),
+        api.get('/reviews').catch(() => ({ data: [] }))
       ]);
-      setFeaturedTreks(treksResp.data.slice(0, 6));
-      setReviews(reviewsResp.data.slice(0, 4));
+      setFeaturedTreks(Array.isArray(treksResp?.data) ? treksResp.data.slice(0, 6) : []);
+      setReviews(Array.isArray(reviewsResp?.data) ? reviewsResp.data.slice(0, 4) : []);
     } catch (err) {
       console.error("Landing page fetch error:", err);
+      setFeaturedTreks([]);
+      setReviews([]);
     } finally {
       setLoading(false);
     }

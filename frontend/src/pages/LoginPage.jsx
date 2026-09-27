@@ -27,7 +27,8 @@ export default function LoginPage() {
         navigate('/trekker/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Invalid email or password. Please try again.');
+      const errDetail = err.response?.data?.error;
+      setError(typeof errDetail === 'string' ? errDetail : 'Invalid email or password. Please try again.');
     } finally {
       setLoading(false);
     }

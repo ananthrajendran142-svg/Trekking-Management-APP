@@ -37,7 +37,8 @@ export default function RegisterPage() {
         navigate('/trekker/dashboard');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Registration failed. Please check inputs.');
+      const errDetail = err.response?.data?.error;
+      setError(typeof errDetail === 'string' ? errDetail : 'Registration failed. Please check inputs.');
     } finally {
       setLoading(false);
     }
