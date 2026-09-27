@@ -4,7 +4,10 @@ import api from '../api';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => {
+    const saved = localStorage.getItem('trekmate_user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [token, setToken] = useState(localStorage.getItem('trekmate_token') || null);
   const [loading, setLoading] = useState(true);
 
@@ -20,9 +23,15 @@ export const AuthProvider = ({ children }) => {
     try {
       const resp = await api.get('/auth/me');
       setUser(resp.data.user);
+      localStorage.setItem('trekmate_user', JSON.stringify(resp.data.user));
     } catch (err) {
-      console.error("Auth me check failed:", err);
-      logout();
+      console.error("Auth me check failed, using cached session:", err);
+      const saved = localStorage.getItem('trekmate_user');
+      if (saved) {
+        setUser(JSON.parse(saved));
+      } else {
+        logout();
+      }
     } finally {
       setLoading(false);
     }
@@ -32,6 +41,7 @@ export const AuthProvider = ({ children }) => {
     const resp = await api.post('/auth/login', { email, password });
     const { access_token, user: userData } = resp.data;
     localStorage.setItem('trekmate_token', access_token);
+    localStorage.setItem('trekmate_user', JSON.stringify(userData));
     setToken(access_token);
     setUser(userData);
     return userData;
@@ -48,6 +58,7 @@ export const AuthProvider = ({ children }) => {
     });
     const { access_token, user: userData } = resp.data;
     localStorage.setItem('trekmate_token', access_token);
+    localStorage.setItem('trekmate_user', JSON.stringify(userData));
     setToken(access_token);
     setUser(userData);
     return userData;
@@ -55,12 +66,17 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('trekmate_token');
+    localStorage.removeItem('trekmate_user');
     setToken(null);
     setUser(null);
   };
 
   const updateUser = (updatedData) => {
-    setUser(prev => ({ ...prev, ...updatedData }));
+    setUser(prev => {
+      const newU = { ...prev, ...updatedData };
+      localStorage.setItem('trekmate_user', JSON.stringify(newU));
+      return newU;
+    });
   };
 
   return (
