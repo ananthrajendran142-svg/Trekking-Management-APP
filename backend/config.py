@@ -2,7 +2,10 @@ import os
 from datetime import timedelta
 
 base_dir = os.path.dirname(os.path.abspath(__file__))
-db_path = os.path.join(base_dir, 'trekmate.db')
+if os.environ.get('VERCEL') or not os.access(base_dir, os.W_OK):
+    db_path = '/tmp/trekmate.db'
+else:
+    db_path = os.path.join(base_dir, 'trekmate.db')
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'trekmate-super-secret-key-2026')

@@ -52,9 +52,16 @@ def create_app(config_class=Config):
             'version': '1.0.0'
         }), 200
 
-    # Auto-create tables on launch
+    # Auto-create tables on launch and seed if fresh
     with app.app_context():
         db.create_all()
+        try:
+            from models import User
+            if not User.query.filter_by(email='admin@trekmate.com').first():
+                from seed import seed_database
+                seed_database()
+        except Exception as e:
+            print(f"Auto-seed warning: {e}")
 
     return app
 
