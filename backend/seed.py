@@ -53,6 +53,31 @@ def _run_seed():
 
     db.session.commit()
 
+    # Restore custom registered users across serverless instances
+    try:
+        from persistent_store import load_registered_users
+        custom_users = load_registered_users()
+        for c_user in custom_users:
+            if not c_user.get('email'):
+                continue
+            u = User.query.filter_by(email=c_user['email']).first()
+            if not u:
+                u = User(
+                    name=c_user.get('name', 'User'),
+                    email=c_user['email'],
+                    phone=c_user.get('phone', ''),
+                    role=c_user.get('role', 'trekker'),
+                    status='active'
+                )
+                if 'password_hash' in c_user:
+                    u.password_hash = c_user['password_hash']
+                elif 'password' in c_user:
+                    u.set_password(c_user['password'])
+                db.session.add(u)
+        db.session.commit()
+    except Exception as e:
+        print(f"Custom user restore error: {e}")
+
     # Seed AI Knowledge Base Documents
     if Document.query.count() == 0:
         docs = [

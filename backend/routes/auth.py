@@ -37,6 +37,19 @@ def register():
     db.session.add(user)
     db.session.commit()
 
+    # Save registered user profile to persistent store for serverless cold-start recovery
+    try:
+        from persistent_store import save_registered_user
+        save_registered_user({
+            'name': name,
+            'email': email,
+            'phone': phone,
+            'role': role,
+            'password_hash': user.password_hash
+        })
+    except Exception as e:
+        print(f"Error saving to persistent store: {e}")
+
     access_token = create_access_token(identity=str(user.id))
 
     return jsonify({
@@ -55,19 +68,7 @@ def login():
         return jsonify({'error': 'Email and password are required.'}), 400
 
     user = User.query.filter_by(email=email).first()
-    if not user:
-        # Serverless fallback: if container reset after user registration, auto-provision user
-        name_part = email.split('@')[0].replace('.', ' ').replace('_', ' ').title()
-        user = User(
-            name=name_part,
-            email=email,
-            role='trekker',
-            status='active'
-        )
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
-    elif not user.check_password(password):
+    if not user or not user.check_password(password):
         return jsonify({'error': 'Invalid email or password.'}), 401
 
     if user.status == 'deactivated':
