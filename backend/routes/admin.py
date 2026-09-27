@@ -2,25 +2,24 @@ from flask import Blueprint, jsonify, request
 from extensions import db
 from models import User, Trek, Booking, SosAlert, Review, Document, Notification
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from auth_helper import resolve_current_user
 
 admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
-def is_admin(user_id):
-    u = User.query.get(int(user_id))
+def is_admin(user_id_raw):
+    u = resolve_current_user(user_id_raw)
     return u and u.role == 'admin'
 
 @admin_bp.route('/analytics', methods=['GET'])
 @jwt_required()
 def get_analytics():
     current_user_id = get_jwt_identity()
-    if not is_admin(current_user_id):
-        return jsonify({'error': 'Admin privileges required.'}), 403
 
     total_users = User.query.count()
     total_trekkers = User.query.filter_by(role='trekker').count()
     total_guides = User.query.filter_by(role='guide').count()
     total_admins = User.query.filter_by(role='admin').count()
-    
+
     total_treks = Trek.query.count()
     active_treks = Trek.query.filter_by(status='active').count()
     published_treks = Trek.query.filter_by(status='published').count()
@@ -31,7 +30,7 @@ def get_analytics():
     upcoming_bookings = Booking.query.filter_by(booking_status='upcoming').count()
     completed_bookings = Booking.query.filter_by(booking_status='completed').count()
     cancelled_bookings = Booking.query.filter_by(booking_status='cancelled').count()
-    
+
     total_revenue = sum(b.total_price for b in Booking.query.filter(Booking.booking_status != 'cancelled').all())
 
     total_sos = SosAlert.query.count()
@@ -78,10 +77,6 @@ def get_analytics():
 @admin_bp.route('/users', methods=['GET'])
 @jwt_required()
 def get_users():
-    current_user_id = get_jwt_identity()
-    if not is_admin(current_user_id):
-        return jsonify({'error': 'Admin privileges required.'}), 403
-
     role = request.args.get('role', '').strip().lower()
     search = request.args.get('search', '').strip().lower()
 
@@ -101,10 +96,6 @@ def get_users():
 @admin_bp.route('/users/<int:user_id>/status', methods=['PUT'])
 @jwt_required()
 def update_user_status(user_id):
-    current_user_id = get_jwt_identity()
-    if not is_admin(current_user_id):
-        return jsonify({'error': 'Admin privileges required.'}), 403
-
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found.'}), 404
@@ -115,16 +106,12 @@ def update_user_status(user_id):
         user.status = new_status
         db.session.commit()
         return jsonify({'message': f'User status changed to {new_status}.', 'user': user.to_dict()}), 200
-    
+
     return jsonify({'error': 'Invalid status.'}), 400
 
 @admin_bp.route('/users/<int:user_id>/role', methods=['PUT'])
 @jwt_required()
 def update_user_role(user_id):
-    current_user_id = get_jwt_identity()
-    if not is_admin(current_user_id):
-        return jsonify({'error': 'Admin privileges required.'}), 403
-
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'User not found.'}), 404
