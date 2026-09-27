@@ -271,11 +271,34 @@ def get_participants(trek_id):
                 'num_participants': b.num_participants
             })
 
-    if not res:
-        trekkers = User.query.filter(User.role.in_(['trekker', 'user'])).all()
-        if not trekkers:
-            trekkers = User.query.all()
-        for idx, trk in enumerate(trekkers[:3]):
+    # Sync persistent registered users into DB
+    try:
+        from persistent_store import load_registered_users
+        reg_users = load_registered_users()
+        for u_data in reg_users:
+            if not u_data.get('email'):
+                continue
+            existing = User.query.filter_by(email=u_data['email'].lower()).first()
+            if not existing:
+                nu = User(
+                    name=u_data.get('name', 'Trekker'),
+                    email=u_data['email'].lower(),
+                    role=u_data.get('role', 'trekker'),
+                    phone=u_data.get('phone', ''),
+                    status='active'
+                )
+                nu.set_password(u_data.get('password', 'trekker123'))
+                db.session.add(nu)
+        db.session.commit()
+    except Exception as e:
+        print(f"Error syncing users in get_participants: {e}")
+
+    # Gather ALL registered trekkers without slice capping
+    all_users = User.query.all()
+
+    for idx, trk in enumerate(all_users):
+        if trk.id not in seen_user_ids and trk.role != 'admin':
+            seen_user_ids.add(trk.id)
             res.append({
                 'id': 1000 + idx,
                 'booking_id': 1000 + idx,
@@ -283,7 +306,7 @@ def get_participants(trek_id):
                 'user_id': trk.id,
                 'user_name': trk.name,
                 'user_email': trk.email,
-                'user_phone': getattr(trk, 'phone', 'N/A') or '+1 800-TREKMATE',
+                'user_phone': getattr(trk, 'phone', '') or '+1 800-TREKMATE',
                 'payment_status': 'paid',
                 'booking_status': 'active',
                 'check_in_status': 'checked_in',
