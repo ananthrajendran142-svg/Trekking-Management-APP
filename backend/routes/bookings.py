@@ -15,39 +15,66 @@ def create_booking():
 
     data = request.get_json() or {}
     trek_id = data.get('trek_id')
+    req_trek_name = (data.get('trek_name') or data.get('name') or '').strip()
     num_participants = int(data.get('num_participants', 1))
 
     if not trek_id or num_participants <= 0:
         return jsonify({'error': 'Valid trek ID and participant count required.'}), 400
 
-    trek = Trek.query.get(trek_id)
-    if not trek:
-        # Check if trek can be resolved by name or persistent store
-        from persistent_store import load_custom_treks
-        custom_treks = load_custom_treks()
-        for c_t in custom_treks:
-            if str(c_t.get('id')) == str(trek_id) or c_t.get('name') == str(trek_id):
-                trek = Trek(
-                    id=int(trek_id) if isinstance(trek_id, int) and trek_id < 2000000000 else None,
-                    name=c_t['name'],
-                    location=c_t.get('location', 'High Altitude Region'),
-                    difficulty=c_t.get('difficulty', 'Moderate'),
-                    duration=c_t.get('duration', '3 Days'),
-                    distance=c_t.get('distance', '20 km'),
-                    price=c_t.get('price', 250.0),
-                    status=c_t.get('status', 'published'),
-                    description=c_t.get('description', ''),
-                    guide_id=2
-                )
-                db.session.add(trek)
-                db.session.commit()
-                break
+    trek = None
+    if str(trek_id).isdigit():
+        try:
+            val = int(trek_id)
+            if val < 2000000000:
+                trek = Trek.query.get(val)
+        except Exception:
+            pass
+
+    if not trek and req_trek_name:
+        trek = Trek.query.filter(Trek.name.ilike(req_trek_name)).first()
 
     if not trek:
-        trek = Trek.query.first()
+        trek = Trek.query.filter(Trek.name.ilike(str(trek_id))).first()
+
+    # Restore from persistent store if missing in SQLite
+    if not trek:
+        try:
+            from persistent_store import load_custom_treks
+            custom_treks = load_custom_treks()
+            for c_t in custom_treks:
+                if (
+                    str(c_t.get('id')) == str(trek_id) or
+                    c_t.get('name') == str(trek_id) or
+                    (req_trek_name and c_t.get('name') and c_t.get('name').lower() == req_trek_name.lower())
+                ):
+                    trek = Trek(
+                        name=c_t.get('name', req_trek_name or str(trek_id)),
+                        location=c_t.get('location', 'High Altitude Region'),
+                        difficulty=c_t.get('difficulty', 'Moderate'),
+                        duration=c_t.get('duration', '3 Days'),
+                        distance=c_t.get('distance', '20 km'),
+                        price=c_t.get('price', 250.0),
+                        status=c_t.get('status', 'published'),
+                        description=c_t.get('description', ''),
+                        guide_id=c_t.get('guide_id', 2)
+                    )
+                    db.session.add(trek)
+                    db.session.commit()
+                    break
+        except Exception as e:
+            print(f"Error restoring trek in create_booking: {e}")
 
     if not trek:
-        return jsonify({'error': 'Trek not found.'}), 404
+        # Create trek record with explicit name
+        trek = Trek(
+            name=req_trek_name or str(trek_id),
+            location="High Altitude Region",
+            price=float(data.get('price', 250.0)),
+            status="published",
+            guide_id=2
+        )
+        db.session.add(trek)
+        db.session.commit()
 
     total_price = float(trek.price) * num_participants
 
@@ -57,7 +84,7 @@ def create_booking():
         num_participants=num_participants,
         total_price=total_price,
         booking_status='upcoming',
-        payment_status='paid' if trek.price == 0 else 'pending'
+        payment_status='pending'
     )
     db.session.add(booking)
     db.session.flush()
@@ -89,7 +116,9 @@ def create_booking():
         db.session.add(guide_notif)
 
     db.session.commit()
-    return jsonify({'message': 'Booking successful!', 'booking': booking.to_dict()}), 201
+    b_dict = booking.to_dict()
+    b_dict['trek_name'] = trek.name
+    return jsonify({'message': 'Booking successful!', 'booking': b_dict}), 201
 
 @bookings_bp.route('', methods=['GET'])
 @jwt_required()
