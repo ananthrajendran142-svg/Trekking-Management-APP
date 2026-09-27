@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify
 from extensions import db
 from models import Trek, User, Notification
-from flask_jwt_extended import jwt_required, get_jwt_identity, jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from auth_helper import resolve_current_user
 
 treks_bp = Blueprint('treks', __name__, url_prefix='/api/treks')
 
@@ -82,46 +83,9 @@ def get_trek(trek_id):
 @treks_bp.route('', methods=['POST'])
 @jwt_required()
 def create_trek():
-    current_user_id_raw = get_jwt_identity()
-    user = None
-
-    try:
-        current_user_id = int(current_user_id_raw)
-        user = User.query.get(current_user_id)
-    except (ValueError, TypeError):
-        pass
-
-    if not user and isinstance(current_user_id_raw, str):
-        user = User.query.filter_by(email=current_user_id_raw).first()
-
-    # Fallback to restore user profile from persistent store if missing on cold-start
+    user = resolve_current_user(get_jwt_identity())
     if not user:
-        try:
-            from persistent_store import load_registered_users
-            custom_users = load_registered_users()
-            for c_user in custom_users:
-                if str(c_user.get('id')) == str(current_user_id_raw) or c_user.get('email') == str(current_user_id_raw):
-                    user = User(
-                        name=c_user.get('name', 'Expedition Guide'),
-                        email=c_user.get('email', 'guide@trekmate.com'),
-                        role=c_user.get('role', 'guide'),
-                        status='active'
-                    )
-                    db.session.add(user)
-                    db.session.commit()
-                    break
-        except Exception as e:
-            print(f"Error restoring user in create_trek: {e}")
-
-    # Fallback default guide if still not found
-    if not user:
-        guide_user = User.query.filter_by(role='guide').first() or User.query.filter_by(role='admin').first()
-        if guide_user:
-            user = guide_user
-        else:
-            user = User(name='Himalayan Guide', email='guide@trekmate.com', role='guide', status='active')
-            db.session.add(user)
-            db.session.commit()
+        return jsonify({'error': 'User authentication failed.'}), 401
 
     # Auto-promote user role to guide if they are creating a trek
     if user.role not in ['guide', 'admin']:
@@ -164,23 +128,27 @@ def create_trek():
 
     db.session.add(trek)
     db.session.commit()
+    db.session.refresh(trek)
+
+    trek_dict = trek.to_dict()
 
     # Save to persistent trek store
     try:
         from persistent_store import save_custom_trek
-        save_custom_trek(trek.to_dict())
+        save_custom_trek(trek_dict)
     except Exception as e:
         print(f"Error saving trek to persistent store: {e}")
 
-    return jsonify({'message': 'Trek created successfully.', 'trek': trek.to_dict()}), 201
+    return jsonify({'message': 'Trek created successfully.', 'trek': trek_dict}), 201
 
 @treks_bp.route('/<int:trek_id>', methods=['PUT'])
 @jwt_required()
 def update_trek(trek_id):
-    current_user_id = int(get_jwt_identity())
-    user = User.query.get(current_user_id)
-    trek = Trek.query.get(trek_id)
+    user = resolve_current_user(get_jwt_identity())
+    if not user:
+        return jsonify({'error': 'User authentication failed.'}), 401
 
+    trek = Trek.query.get(trek_id)
     if not trek:
         return jsonify({'error': 'Trek not found.'}), 404
 
@@ -204,26 +172,19 @@ def update_trek(trek_id):
         trek.price = float(data['price'])
 
     db.session.commit()
+
+    try:
+        from persistent_store import save_custom_trek
+        save_custom_trek(trek.to_dict())
+    except Exception as e:
+        print(f"Error saving updated trek: {e}")
+
     return jsonify({'message': 'Trek updated successfully.', 'trek': trek.to_dict()}), 200
 
 @treks_bp.route('/<int:trek_id>/status', methods=['PUT'])
 @jwt_required()
 def update_trek_status(trek_id):
-    current_user_id_raw = get_jwt_identity()
-    user = None
-
-    try:
-        current_user_id = int(current_user_id_raw)
-        user = User.query.get(current_user_id)
-    except (ValueError, TypeError):
-        pass
-
-    if not user and isinstance(current_user_id_raw, str):
-        user = User.query.filter_by(email=current_user_id_raw).first()
-
-    if not user:
-        user = User.query.filter_by(role='guide').first() or User.query.filter_by(role='admin').first()
-
+    user = resolve_current_user(get_jwt_identity())
     trek = Trek.query.get(trek_id)
 
     # Restore trek from persistent store if missing in SQLite on cold start
@@ -258,10 +219,8 @@ def update_trek_status(trek_id):
 
     if trek:
         trek.status = new_status
-        if user and (user.role == 'admin' or trek.guide_id == user.id):
-            pass
-        else:
-            trek.guide_id = user.id if user else 2
+        if user and user.id:
+            trek.guide_id = user.id
 
         if new_status in ['active', 'cancelled', 'completed']:
             for booking in trek.bookings:
@@ -296,10 +255,11 @@ def update_trek_status(trek_id):
 @treks_bp.route('/<int:trek_id>', methods=['DELETE'])
 @jwt_required()
 def delete_trek(trek_id):
-    current_user_id = int(get_jwt_identity())
-    user = User.query.get(current_user_id)
-    trek = Trek.query.get(trek_id)
+    user = resolve_current_user(get_jwt_identity())
+    if not user:
+        return jsonify({'error': 'User authentication failed.'}), 401
 
+    trek = Trek.query.get(trek_id)
     if not trek:
         return jsonify({'error': 'Trek not found.'}), 404
 
@@ -309,3 +269,4 @@ def delete_trek(trek_id):
     db.session.delete(trek)
     db.session.commit()
     return jsonify({'message': 'Trek deleted successfully.'}), 200
+

@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
+import { useAuth } from '../../context/AuthContext';
 import { Compass, Save, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 export default function CreateTrek() {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
@@ -36,41 +38,8 @@ export default function CreateTrek() {
     const defaultMountainImg = "https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=1200&q=80";
     const finalImageUrl = imageUrl.trim() ? imageUrl.trim() : defaultMountainImg;
 
-    const newTrekObj = {
-      id: Date.now(),
-      name,
-      location,
-      latitude: parseFloat(latitude),
-      longitude: parseFloat(longitude),
-      difficulty,
-      duration,
-      distance,
-      max_participants: parseInt(maxParticipants),
-      available_slots: parseInt(maxParticipants),
-      price: parseFloat(price),
-      start_date: startDate,
-      end_date: endDate,
-      meeting_point: meetingPoint,
-      required_equipment: requiredEquipment,
-      safety_instructions: safetyInstructions,
-      description,
-      itinerary,
-      image_url: finalImageUrl,
-      status: status || 'published',
-      guide_name: 'Himalayan Guide'
-    };
-
     try {
-      const saved = localStorage.getItem('trekmate_custom_treks');
-      let customTreks = saved ? JSON.parse(saved) : [];
-      customTreks.unshift(newTrekObj);
-      localStorage.setItem('trekmate_custom_treks', JSON.stringify(customTreks));
-    } catch (e) {
-      console.error("Local trek save error:", e);
-    }
-
-    try {
-      await api.post('/treks', {
+      const resp = await api.post('/treks', {
         name,
         location,
         latitude: parseFloat(latitude),
@@ -88,17 +57,61 @@ export default function CreateTrek() {
         description,
         itinerary,
         image_url: finalImageUrl,
-        status
+        status: status || 'published'
       });
+
+      const createdTrek = resp.data.trek || resp.data;
+
+      // Immediately save created trek to local storage for zero-delay UI rendering
+      try {
+        const saved = localStorage.getItem('trekmate_custom_treks');
+        let customTreks = saved ? JSON.parse(saved) : [];
+        customTreks = customTreks.filter(t => t.name !== createdTrek.name);
+        customTreks.unshift(createdTrek);
+        localStorage.setItem('trekmate_custom_treks', JSON.stringify(customTreks));
+      } catch (e) {
+        console.error("Local trek save error:", e);
+      }
 
       navigate('/guide/treks');
     } catch (err) {
-      console.warn("Server trek post error, proceeding with local saved trek:", err);
+      console.warn("Server trek post error, saving locally:", err);
+      const fallbackTrek = {
+        id: Date.now(),
+        name,
+        location,
+        latitude: parseFloat(latitude),
+        longitude: parseFloat(longitude),
+        difficulty,
+        duration,
+        distance,
+        max_participants: parseInt(maxParticipants),
+        available_slots: parseInt(maxParticipants),
+        price: parseFloat(price),
+        start_date: startDate,
+        end_date: endDate,
+        meeting_point: meetingPoint,
+        required_equipment: requiredEquipment,
+        safety_instructions: safetyInstructions,
+        description,
+        itinerary,
+        image_url: finalImageUrl,
+        status: status || 'published',
+        guide_id: user?.id,
+        guide_name: user?.name || 'Guide'
+      };
+      try {
+        const saved = localStorage.getItem('trekmate_custom_treks');
+        let customTreks = saved ? JSON.parse(saved) : [];
+        customTreks.unshift(fallbackTrek);
+        localStorage.setItem('trekmate_custom_treks', JSON.stringify(customTreks));
+      } catch (e) {}
       navigate('/guide/treks');
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
