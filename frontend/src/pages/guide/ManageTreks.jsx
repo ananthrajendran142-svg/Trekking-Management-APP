@@ -13,6 +13,13 @@ export default function ManageTreks() {
 
   useEffect(() => {
     fetchTreks();
+    const handleUpdate = () => fetchTreks();
+    window.addEventListener('trekmate_treks_updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    return () => {
+      window.removeEventListener('trekmate_treks_updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
   }, []);
 
   const fetchTreks = async () => {

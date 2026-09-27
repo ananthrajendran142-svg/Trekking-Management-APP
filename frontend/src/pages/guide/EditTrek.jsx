@@ -131,6 +131,7 @@ export default function EditTrek() {
           customList.unshift(updatedServerTrek);
         }
         localStorage.setItem('trekmate_custom_treks', JSON.stringify(customList));
+        window.dispatchEvent(new Event('trekmate_treks_updated'));
       } catch (e) {
         console.error(e);
       }
@@ -148,6 +149,7 @@ export default function EditTrek() {
           customList.unshift(payload);
         }
         localStorage.setItem('trekmate_custom_treks', JSON.stringify(customList));
+        window.dispatchEvent(new Event('trekmate_treks_updated'));
       } catch (e) {}
       navigate('/guide/treks');
     } finally {

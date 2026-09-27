@@ -15,6 +15,13 @@ export default function LandingPage() {
 
   useEffect(() => {
     fetchLandingData();
+    const handleUpdate = () => fetchLandingData();
+    window.addEventListener('trekmate_treks_updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    return () => {
+      window.removeEventListener('trekmate_treks_updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
   }, []);
 
   const fetchLandingData = async () => {

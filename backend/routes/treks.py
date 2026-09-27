@@ -8,6 +8,63 @@ treks_bp = Blueprint('treks', __name__, url_prefix='/api/treks')
 
 @treks_bp.route('', methods=['GET'])
 def get_treks():
+    # Sync custom published & updated treks from persistent store into SQLite FIRST
+    try:
+        from persistent_store import load_custom_treks
+        custom_treks = load_custom_treks()
+        for c_t in custom_treks:
+            if not c_t.get('name'):
+                continue
+
+            existing = None
+            if c_t.get('id'):
+                try:
+                    existing = Trek.query.get(int(c_t['id']))
+                except (ValueError, TypeError):
+                    pass
+            if not existing:
+                existing = Trek.query.filter_by(name=c_t['name']).first()
+
+            if existing:
+                # Update existing DB trek fields with latest properties
+                for key in ['name', 'location', 'difficulty', 'duration', 'distance', 'description', 
+                            'start_date', 'end_date', 'meeting_point', 'required_equipment', 
+                            'safety_instructions', 'itinerary', 'status', 'image_url']:
+                    if key in c_t and c_t[key] is not None:
+                        setattr(existing, key, c_t[key])
+                if 'price' in c_t and c_t['price'] is not None:
+                    existing.price = float(c_t['price'])
+                if 'max_participants' in c_t and c_t['max_participants'] is not None:
+                    existing.max_participants = int(c_t['max_participants'])
+            else:
+                # Insert missing custom trek
+                t_obj = Trek(
+                    id=int(c_t['id']) if isinstance(c_t.get('id'), int) and c_t['id'] < 2000000000 else None,
+                    name=c_t['name'],
+                    location=c_t.get('location', 'High Altitude Region'),
+                    latitude=c_t.get('latitude', 32.2432),
+                    longitude=c_t.get('longitude', 77.1892),
+                    difficulty=c_t.get('difficulty', 'Moderate'),
+                    duration=c_t.get('duration', '3 Days'),
+                    distance=c_t.get('distance', '20 km'),
+                    max_participants=c_t.get('max_participants', 15),
+                    price=c_t.get('price', 250.0),
+                    start_date=c_t.get('start_date', ''),
+                    end_date=c_t.get('end_date', ''),
+                    meeting_point=c_t.get('meeting_point', ''),
+                    required_equipment=c_t.get('required_equipment', ''),
+                    safety_instructions=c_t.get('safety_instructions', ''),
+                    description=c_t.get('description', ''),
+                    itinerary=c_t.get('itinerary', ''),
+                    status=c_t.get('status', 'published'),
+                    image_url=c_t.get('image_url', ''),
+                    guide_id=c_t.get('guide_id', 2)
+                )
+                db.session.add(t_obj)
+        db.session.commit()
+    except Exception as e:
+        print(f"Trek restore error: {e}")
+
     query = Trek.query
 
     # Optional query params
@@ -37,38 +94,6 @@ def get_treks():
         query = query.filter(Trek.guide_id == guide_id)
     if max_price:
         query = query.filter(Trek.price <= max_price)
-
-    # Auto-restore custom published treks on cold start
-    try:
-        from persistent_store import load_custom_treks
-        custom_treks = load_custom_treks()
-        for c_t in custom_treks:
-            if c_t.get('name') and not Trek.query.filter_by(name=c_t['name']).first():
-                t_obj = Trek(
-                    name=c_t['name'],
-                    location=c_t.get('location', 'High Altitude Region'),
-                    latitude=c_t.get('latitude', 32.2432),
-                    longitude=c_t.get('longitude', 77.1892),
-                    difficulty=c_t.get('difficulty', 'Moderate'),
-                    duration=c_t.get('duration', '3 Days'),
-                    distance=c_t.get('distance', '20 km'),
-                    max_participants=c_t.get('max_participants', 15),
-                    price=c_t.get('price', 250.0),
-                    start_date=c_t.get('start_date', ''),
-                    end_date=c_t.get('end_date', ''),
-                    meeting_point=c_t.get('meeting_point', ''),
-                    required_equipment=c_t.get('required_equipment', ''),
-                    safety_instructions=c_t.get('safety_instructions', ''),
-                    description=c_t.get('description', ''),
-                    itinerary=c_t.get('itinerary', ''),
-                    status=c_t.get('status', 'published'),
-                    image_url=c_t.get('image_url', ''),
-                    guide_id=c_t.get('guide_id', 2)
-                )
-                db.session.add(t_obj)
-        db.session.commit()
-    except Exception as e:
-        print(f"Trek restore error: {e}")
 
     treks = query.order_by(Trek.id.desc()).all()
     return jsonify([t.to_dict() for t in treks]), 200

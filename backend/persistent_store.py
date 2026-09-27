@@ -90,8 +90,13 @@ def load_custom_treks():
 def save_custom_trek(trek_data):
     treks = load_custom_treks()
     existing = False
+    req_id = str(trek_data.get('id')) if trek_data.get('id') else None
+    req_name = str(trek_data.get('name', '')).strip().lower()
+
     for t in treks:
-        if t.get('name') == trek_data.get('name'):
+        t_id = str(t.get('id')) if t.get('id') else None
+        t_name = str(t.get('name', '')).strip().lower()
+        if (req_id and t_id == req_id) or (req_name and t_name == req_name):
             t.update(trek_data)
             existing = True
             break

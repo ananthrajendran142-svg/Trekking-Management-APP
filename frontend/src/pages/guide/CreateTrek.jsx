@@ -69,6 +69,7 @@ export default function CreateTrek() {
         customTreks = customTreks.filter(t => t.name !== createdTrek.name);
         customTreks.unshift(createdTrek);
         localStorage.setItem('trekmate_custom_treks', JSON.stringify(customTreks));
+        window.dispatchEvent(new Event('trekmate_treks_updated'));
       } catch (e) {
         console.error("Local trek save error:", e);
       }
@@ -105,6 +106,7 @@ export default function CreateTrek() {
         let customTreks = saved ? JSON.parse(saved) : [];
         customTreks.unshift(fallbackTrek);
         localStorage.setItem('trekmate_custom_treks', JSON.stringify(customTreks));
+        window.dispatchEvent(new Event('trekmate_treks_updated'));
       } catch (e) {}
       navigate('/guide/treks');
     } finally {

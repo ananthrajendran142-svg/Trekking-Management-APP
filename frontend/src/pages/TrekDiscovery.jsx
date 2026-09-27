@@ -18,6 +18,13 @@ export default function TrekDiscovery() {
 
   useEffect(() => {
     fetchTreks();
+    const handleUpdate = () => fetchTreks();
+    window.addEventListener('trekmate_treks_updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    return () => {
+      window.removeEventListener('trekmate_treks_updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
   }, [searchParams]);
 
   const fetchTreks = async () => {
