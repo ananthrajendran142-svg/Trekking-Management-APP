@@ -12,6 +12,13 @@ export default function MyBookings() {
 
   useEffect(() => {
     fetchBookings();
+    const handleUpdate = () => fetchBookings();
+    window.addEventListener('trekmate_treks_updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    return () => {
+      window.removeEventListener('trekmate_treks_updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
   }, []);
 
   const fetchBookings = async () => {
@@ -28,16 +35,19 @@ export default function MyBookings() {
       const saved = localStorage.getItem('trekmate_custom_treks');
       if (saved) {
         const customTreks = JSON.parse(saved);
-        const completedMap = new Map();
+        const completedIds = new Set();
+        const completedNames = new Set();
         customTreks.forEach(ct => {
           if (ct.status === 'completed') {
-            completedMap.set(String(ct.id), true);
-            completedMap.set(ct.name, true);
+            if (ct.id) completedIds.add(String(ct.id));
+            if (ct.name) completedNames.add(ct.name.trim().toLowerCase());
           }
         });
 
         bkList = bkList.map(b => {
-          if (completedMap.has(String(b.trek_id)) || completedMap.has(b.trek_name)) {
+          const bIdStr = String(b.trek_id);
+          const bNameStr = String(b.trek_name || '').trim().toLowerCase();
+          if (completedIds.has(bIdStr) || completedNames.has(bNameStr)) {
             if (b.booking_status !== 'cancelled') {
               return { ...b, booking_status: 'completed' };
             }

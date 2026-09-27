@@ -117,21 +117,29 @@ def get_bookings():
     
     # Check custom persistent store for completed trek status overrides
     completed_trek_ids = set()
+    completed_trek_names = set()
     try:
         from persistent_store import load_custom_treks
         custom_treks = load_custom_treks()
         for ct in custom_treks:
             if ct.get('status') == 'completed':
-                completed_trek_ids.add(str(ct.get('id')))
+                if ct.get('id'):
+                    completed_trek_ids.add(str(ct.get('id')))
+                if ct.get('name'):
+                    completed_trek_names.add(str(ct.get('name')).strip().lower())
     except Exception:
         pass
 
     result = []
     for b in bookings:
         b_dict = b.to_dict()
-        if (b.trek and b.trek.status == 'completed') or str(b.trek_id) in completed_trek_ids:
+        b_name = str(b_dict.get('trek_name', '')).strip().lower()
+        if (b.trek and b.trek.status == 'completed') or str(b.trek_id) in completed_trek_ids or (b_name and b_name in completed_trek_names):
             if b_dict['booking_status'] != 'cancelled':
                 b_dict['booking_status'] = 'completed'
+                if b.booking_status != 'completed':
+                    b.booking_status = 'completed'
+                    db.session.commit()
         result.append(b_dict)
 
     return jsonify(result), 200

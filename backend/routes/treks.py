@@ -294,11 +294,19 @@ def update_trek(trek_id):
 
     return jsonify({'message': 'Trek updated successfully.', 'trek': trek_dict}), 200
 
-@treks_bp.route('/<int:trek_id>/status', methods=['PUT'])
+@treks_bp.route('/<trek_id>/status', methods=['PUT'])
 @jwt_required()
 def update_trek_status(trek_id):
     user = resolve_current_user(get_jwt_identity())
-    trek = Trek.query.get(trek_id)
+    trek = None
+    if str(trek_id).isdigit():
+        try:
+            trek = Trek.query.get(int(trek_id))
+        except Exception:
+            pass
+
+    if not trek:
+        trek = Trek.query.filter_by(name=str(trek_id)).first()
 
     # Restore trek from persistent store if missing in SQLite on cold start
     if not trek:
@@ -307,20 +315,23 @@ def update_trek_status(trek_id):
             custom_treks = load_custom_treks()
             for c_t in custom_treks:
                 if str(c_t.get('id')) == str(trek_id) or c_t.get('name') == str(trek_id):
-                    trek = Trek(
-                        id=int(trek_id) if isinstance(trek_id, int) and trek_id < 2000000000 else None,
-                        name=c_t['name'],
-                        location=c_t.get('location', 'High Altitude Region'),
-                        difficulty=c_t.get('difficulty', 'Moderate'),
-                        duration=c_t.get('duration', '3 Days'),
-                        distance=c_t.get('distance', '20 km'),
-                        price=c_t.get('price', 250.0),
-                        status=c_t.get('status', 'published'),
-                        description=c_t.get('description', ''),
-                        guide_id=user.id if user else 2
-                    )
-                    db.session.add(trek)
-                    db.session.commit()
+                    existing = Trek.query.filter_by(name=c_t['name']).first()
+                    if existing:
+                        trek = existing
+                    else:
+                        trek = Trek(
+                            name=c_t['name'],
+                            location=c_t.get('location', 'High Altitude Region'),
+                            difficulty=c_t.get('difficulty', 'Moderate'),
+                            duration=c_t.get('duration', '3 Days'),
+                            distance=c_t.get('distance', '20 km'),
+                            price=c_t.get('price', 250.0),
+                            status=c_t.get('status', 'published'),
+                            description=c_t.get('description', ''),
+                            guide_id=user.id if user else 2
+                        )
+                        db.session.add(trek)
+                        db.session.commit()
                     break
         except Exception as e:
             print(f"Error restoring trek in status update: {e}")
@@ -336,9 +347,11 @@ def update_trek_status(trek_id):
             trek.guide_id = user.id
 
         if new_status in ['active', 'cancelled', 'completed']:
-            all_bookings = Booking.query.filter_by(trek_id=trek.id).all()
+            # Match bookings by trek.id OR trek.name
+            all_bookings = Booking.query.all()
             for booking in all_bookings:
-                if booking.booking_status != 'cancelled':
+                is_match = (booking.trek_id == trek.id) or (booking.trek and booking.trek.name == trek.name)
+                if is_match and booking.booking_status != 'cancelled':
                     notif = Notification(
                         user_id=booking.user_id,
                         title=f"Trek Status Update: {trek.name}",
@@ -359,9 +372,17 @@ def update_trek_status(trek_id):
 
         return jsonify({'message': f'Trek status changed to {new_status}.', 'trek': trek.to_dict()}), 200
     else:
+        # Also update all DB bookings to completed if trek name/id matches
         try:
+            all_bks = Booking.query.all()
+            for b in all_bks:
+                if str(b.trek_id) == str(trek_id) or (b.trek and b.trek.name == str(trek_id)):
+                    if new_status == 'completed':
+                        b.booking_status = 'completed'
+            db.session.commit()
+
             from persistent_store import save_custom_trek
-            save_custom_trek({'id': trek_id, 'status': new_status})
+            save_custom_trek({'id': trek_id, 'name': str(trek_id), 'status': new_status})
         except Exception:
             pass
         return jsonify({'message': f'Trek status changed to {new_status}.', 'trek': {'id': trek_id, 'status': new_status}}), 200

@@ -62,6 +62,7 @@ export default function ManageTreks() {
         list = list.map(t => String(t.id) === String(trekId) ? { ...t, status: newStatus } : t);
         localStorage.setItem('trekmate_custom_treks', JSON.stringify(list));
       }
+      window.dispatchEvent(new Event('trekmate_treks_updated'));
     } catch (e) {
       console.error(e);
     }
@@ -69,6 +70,7 @@ export default function ManageTreks() {
     // 2. Notify backend
     try {
       await api.put(`/treks/${trekId}/status`, { status: newStatus });
+      window.dispatchEvent(new Event('trekmate_treks_updated'));
     } catch (err) {
       console.warn("Backend status change warning, proceeding with local state:", err);
     }
