@@ -1,0 +1,33 @@
+from flask import Blueprint, jsonify, request
+from extensions import db, socketio
+from models import Message, Trek
+from flask_jwt_extended import jwt_required, get_jwt_identity
+
+chat_bp = Blueprint('chat', __name__, url_prefix='/api/chat')
+
+@chat_bp.route('/<int:trek_id>/history', methods=['GET'])
+@jwt_required()
+def get_chat_history(trek_id):
+    messages = Message.query.filter_by(trek_id=trek_id).order_by(Message.id.asc()).all()
+    return jsonify([m.to_dict() for m in messages]), 200
+
+@chat_bp.route('/<int:trek_id>/send', methods=['POST'])
+@jwt_required()
+def send_chat_message(trek_id):
+    current_user_id = int(get_jwt_identity())
+    data = request.get_json() or {}
+    content = data.get('content', '').strip()
+
+    if not content:
+        return jsonify({'error': 'Message content cannot be empty.'}), 400
+
+    msg = Message(trek_id=trek_id, sender_id=current_user_id, content=content)
+    db.session.add(msg)
+    db.session.commit()
+    db.session.refresh(msg)
+
+    msg_dict = msg.to_dict()
+    room = f"trek_{trek_id}"
+    socketio.emit('receive_chat', msg_dict, room=room)
+
+    return jsonify(msg_dict), 201

@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.yarn/
+
+# Frontend Build
+frontend/dist/
+frontend/build/
+.cache/
+
+# Python / Flask
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+*.sqlite
+*.db
+backend/*.db
+instance/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# Gemini / Antigravity artifacts
+.gemini/
