@@ -43,11 +43,24 @@ export default function ManageTreks() {
   };
 
   const handleStatusChange = async (trekId, newStatus) => {
+    // 1. Immediately update UI state & local storage
+    setTreks(prev => prev.map(t => String(t.id) === String(trekId) ? { ...t, status: newStatus } : t));
+    try {
+      const saved = localStorage.getItem('trekmate_custom_treks');
+      if (saved) {
+        let list = JSON.parse(saved);
+        list = list.map(t => String(t.id) === String(trekId) ? { ...t, status: newStatus } : t);
+        localStorage.setItem('trekmate_custom_treks', JSON.stringify(list));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    // 2. Notify backend
     try {
       await api.put(`/treks/${trekId}/status`, { status: newStatus });
-      fetchTreks();
     } catch (err) {
-      alert("Status update failed.");
+      console.warn("Backend status change warning, proceeding with local state:", err);
     }
   };
 
