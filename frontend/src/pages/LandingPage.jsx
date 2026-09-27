@@ -23,11 +23,39 @@ export default function LandingPage() {
         api.get('/treks').catch(() => ({ data: [] })),
         api.get('/reviews').catch(() => ({ data: [] }))
       ]);
-      setFeaturedTreks(Array.isArray(treksResp?.data) ? treksResp.data.slice(0, 6) : []);
+      
+      let fetchedTreks = Array.isArray(treksResp?.data) ? treksResp.data : [];
+      const trekMap = new Map();
+      fetchedTreks.forEach(t => trekMap.set(String(t.id), t));
+
+      try {
+        const saved = localStorage.getItem('trekmate_custom_treks');
+        if (saved) {
+          const customTreks = JSON.parse(saved);
+          customTreks.forEach(ct => {
+            const key = String(ct.id);
+            if (trekMap.has(key)) {
+              trekMap.set(key, { ...trekMap.get(key), ...ct });
+            } else {
+              trekMap.set(key, ct);
+            }
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      }
+
+      const combinedTreks = Array.from(trekMap.values());
+      setFeaturedTreks(combinedTreks.slice(0, 6));
       setReviews(Array.isArray(reviewsResp?.data) ? reviewsResp.data.slice(0, 4) : []);
     } catch (err) {
       console.error("Landing page fetch error:", err);
-      setFeaturedTreks([]);
+      try {
+        const customTreks = JSON.parse(localStorage.getItem('trekmate_custom_treks') || '[]');
+        setFeaturedTreks(customTreks.slice(0, 6));
+      } catch (e) {
+        setFeaturedTreks([]);
+      }
       setReviews([]);
     } finally {
       setLoading(false);

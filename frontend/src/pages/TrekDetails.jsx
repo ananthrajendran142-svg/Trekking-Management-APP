@@ -32,15 +32,19 @@ export default function TrekDetails() {
       loadedTrek = trekResp.data;
     } catch (err) {
       console.warn("Trek details API warning, searching local cache:", err);
-      try {
-        const saved = localStorage.getItem('trekmate_custom_treks');
-        if (saved) {
-          const customList = JSON.parse(saved);
-          loadedTrek = customList.find(t => String(t.id) === String(id) || t.name === id);
+    }
+
+    try {
+      const saved = localStorage.getItem('trekmate_custom_treks');
+      if (saved) {
+        const customList = JSON.parse(saved);
+        const match = customList.find(t => String(t.id) === String(id) || t.name === id);
+        if (match) {
+          loadedTrek = loadedTrek ? { ...loadedTrek, ...match } : match;
         }
-      } catch (e) {
-        console.error(e);
       }
+    } catch (e) {
+      console.error(e);
     }
 
     if (loadedTrek) {

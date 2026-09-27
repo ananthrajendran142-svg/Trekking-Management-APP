@@ -42,7 +42,10 @@ export default function TrekDiscovery() {
       if (saved) {
         const customTreks = JSON.parse(saved);
         customTreks.forEach(ct => {
-          if (!loadedTreks.some(lt => String(lt.id) === String(ct.id) || lt.name.toLowerCase() === ct.name.toLowerCase())) {
+          const idx = loadedTreks.findIndex(lt => String(lt.id) === String(ct.id) || lt.name.toLowerCase() === ct.name.toLowerCase());
+          if (idx !== -1) {
+            loadedTreks[idx] = { ...loadedTreks[idx], ...ct };
+          } else {
             loadedTreks.unshift(ct);
           }
         });

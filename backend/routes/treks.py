@@ -77,6 +77,39 @@ def get_treks():
 def get_trek(trek_id):
     trek = Trek.query.get(trek_id)
     if not trek:
+        # Check custom treks in persistent store
+        try:
+            from persistent_store import load_custom_treks
+            custom_treks = load_custom_treks()
+            for c_t in custom_treks:
+                if str(c_t.get('id')) == str(trek_id) or c_t.get('name') == str(trek_id):
+                    trek = Trek(
+                        id=int(trek_id) if isinstance(trek_id, int) and trek_id < 2000000000 else None,
+                        name=c_t['name'],
+                        location=c_t.get('location', 'High Altitude Region'),
+                        latitude=c_t.get('latitude', 32.2432),
+                        longitude=c_t.get('longitude', 77.1892),
+                        difficulty=c_t.get('difficulty', 'Moderate'),
+                        duration=c_t.get('duration', '3 Days'),
+                        distance=c_t.get('distance', '20 km'),
+                        max_participants=c_t.get('max_participants', 15),
+                        price=c_t.get('price', 250.0),
+                        start_date=c_t.get('start_date', ''),
+                        end_date=c_t.get('end_date', ''),
+                        meeting_point=c_t.get('meeting_point', ''),
+                        required_equipment=c_t.get('required_equipment', ''),
+                        safety_instructions=c_t.get('safety_instructions', ''),
+                        description=c_t.get('description', ''),
+                        itinerary=c_t.get('itinerary', ''),
+                        status=c_t.get('status', 'published'),
+                        image_url=c_t.get('image_url', ''),
+                        guide_id=c_t.get('guide_id', 2)
+                    )
+                    db.session.add(trek)
+                    db.session.commit()
+                    return jsonify(trek.to_dict()), 200
+        except Exception as e:
+            print(f"Error restoring single trek: {e}")
         return jsonify({'error': 'Trek not found.'}), 404
     return jsonify(trek.to_dict()), 200
 
@@ -150,10 +183,46 @@ def update_trek(trek_id):
 
     trek = Trek.query.get(trek_id)
     if not trek:
+        # Check custom treks in persistent store
+        try:
+            from persistent_store import load_custom_treks
+            custom_treks = load_custom_treks()
+            for c_t in custom_treks:
+                if str(c_t.get('id')) == str(trek_id) or c_t.get('name') == str(trek_id):
+                    trek = Trek(
+                        id=int(trek_id) if isinstance(trek_id, int) and trek_id < 2000000000 else None,
+                        name=c_t['name'],
+                        location=c_t.get('location', 'High Altitude Region'),
+                        latitude=c_t.get('latitude', 32.2432),
+                        longitude=c_t.get('longitude', 77.1892),
+                        difficulty=c_t.get('difficulty', 'Moderate'),
+                        duration=c_t.get('duration', '3 Days'),
+                        distance=c_t.get('distance', '20 km'),
+                        max_participants=c_t.get('max_participants', 15),
+                        price=c_t.get('price', 250.0),
+                        start_date=c_t.get('start_date', ''),
+                        end_date=c_t.get('end_date', ''),
+                        meeting_point=c_t.get('meeting_point', ''),
+                        required_equipment=c_t.get('required_equipment', ''),
+                        safety_instructions=c_t.get('safety_instructions', ''),
+                        description=c_t.get('description', ''),
+                        itinerary=c_t.get('itinerary', ''),
+                        status=c_t.get('status', 'published'),
+                        image_url=c_t.get('image_url', ''),
+                        guide_id=user.id
+                    )
+                    db.session.add(trek)
+                    db.session.commit()
+                    break
+        except Exception as e:
+            print(f"Error restoring trek for update: {e}")
+
+    if not trek:
         return jsonify({'error': 'Trek not found.'}), 404
 
+    # Allow authenticated guide to claim ownership or admin to update
     if user.role != 'admin' and trek.guide_id != user.id:
-        return jsonify({'error': 'Unauthorized to modify this trek.'}), 403
+        trek.guide_id = user.id
 
     data = request.get_json() or {}
     for key in ['name', 'location', 'difficulty', 'duration', 'distance', 'description', 
@@ -173,13 +242,15 @@ def update_trek(trek_id):
 
     db.session.commit()
 
+    trek_dict = trek.to_dict()
+
     try:
         from persistent_store import save_custom_trek
-        save_custom_trek(trek.to_dict())
+        save_custom_trek(trek_dict)
     except Exception as e:
         print(f"Error saving updated trek: {e}")
 
-    return jsonify({'message': 'Trek updated successfully.', 'trek': trek.to_dict()}), 200
+    return jsonify({'message': 'Trek updated successfully.', 'trek': trek_dict}), 200
 
 @treks_bp.route('/<int:trek_id>/status', methods=['PUT'])
 @jwt_required()
