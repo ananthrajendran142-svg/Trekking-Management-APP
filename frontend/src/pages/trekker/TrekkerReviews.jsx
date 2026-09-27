@@ -129,9 +129,14 @@ export default function TrekkerReviews() {
     // Also synthesize completed bookings for any completed treks if bkList has no completed booking for them
     allTreks.forEach(ct => {
       if (ct.status === 'completed') {
-        const exists = bkList.some(b => String(b.trek_id) === String(ct.id) || (b.trek_name && b.trek_name.toLowerCase() === ct.name.toLowerCase()));
+        const cNameLower = (ct.name || '').trim().toLowerCase();
+        const cIdStr = String(ct.id || '');
+        const exists = bkList.some(b => 
+          String(b.trek_id) === cIdStr || 
+          (b.trek_name && b.trek_name.trim().toLowerCase() === cNameLower)
+        );
         if (!exists) {
-          bkList.push({
+          bkList.unshift({
             id: ct.id || Date.now(),
             trek_id: ct.id || Date.now(),
             trek_name: ct.name,

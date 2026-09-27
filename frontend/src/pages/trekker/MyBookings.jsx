@@ -66,6 +66,30 @@ export default function MyBookings() {
       return b;
     });
 
+    // Auto-synthesize completed bookings for any completed treks in the platform
+    allTreks.forEach(ct => {
+      if (ct.status === 'completed') {
+        const cNameLower = (ct.name || '').trim().toLowerCase();
+        const cIdStr = String(ct.id || '');
+        const exists = bkList.some(b => 
+          String(b.trek_id) === cIdStr || 
+          (b.trek_name && b.trek_name.trim().toLowerCase() === cNameLower)
+        );
+        if (!exists) {
+          bkList.unshift({
+            id: ct.id || Date.now(),
+            trek_id: ct.id || Date.now(),
+            trek_name: ct.name,
+            trek_location: ct.location || 'High Altitude Region',
+            booking_status: 'completed',
+            payment_status: 'paid',
+            num_participants: 1,
+            total_price: ct.price || 250
+          });
+        }
+      }
+    });
+
     setBookings(bkList);
     setLoading(false);
   };

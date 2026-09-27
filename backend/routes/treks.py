@@ -96,7 +96,18 @@ def get_treks():
         query = query.filter(Trek.price <= max_price)
 
     treks = query.order_by(Trek.id.desc()).all()
-    return jsonify([t.to_dict() for t in treks]), 200
+    res = [t.to_dict() for t in treks]
+
+    try:
+        from persistent_store import load_custom_treks
+        c_treks = load_custom_treks()
+        for ct in c_treks:
+            if ct.get('name') and not any(r.get('name', '').lower() == ct['name'].lower() for r in res):
+                res.append(ct)
+    except Exception:
+        pass
+
+    return jsonify(res), 200
 
 @treks_bp.route('/<trek_id>', methods=['GET'])
 def get_trek(trek_id):
