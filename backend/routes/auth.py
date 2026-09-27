@@ -68,8 +68,36 @@ def login():
         return jsonify({'error': 'Email and password are required.'}), 400
 
     user = User.query.filter_by(email=email).first()
+
+    # If user is missing from local SQLite (e.g. cold start on new deployment), restore from persistent store
+    if not user:
+        try:
+            from persistent_store import load_registered_users
+            custom_users = load_registered_users()
+            for c_user in custom_users:
+                if c_user.get('email', '').strip().lower() == email:
+                    u_existing = User.query.filter_by(email=email).first()
+                    if not u_existing:
+                        u_existing = User(
+                            name=c_user.get('name', 'User'),
+                            email=c_user['email'],
+                            phone=c_user.get('phone', ''),
+                            role=c_user.get('role', 'trekker'),
+                            status='active'
+                        )
+                        if 'password_hash' in c_user:
+                            u_existing.password_hash = c_user['password_hash']
+                        elif 'password' in c_user:
+                            u_existing.set_password(c_user['password'])
+                        db.session.add(u_existing)
+                        db.session.commit()
+                    user = u_existing
+                    break
+        except Exception as e:
+            print(f"Error restoring user during login: {e}")
+
     if not user or not user.check_password(password):
-        return jsonify({'error': 'Invalid email or password.'}), 401
+        return jsonify({'error': 'Invalid email or password. Please try again.'}), 401
 
     if user.status == 'deactivated':
         return jsonify({'error': 'Account deactivated. Please contact support.'}), 403
