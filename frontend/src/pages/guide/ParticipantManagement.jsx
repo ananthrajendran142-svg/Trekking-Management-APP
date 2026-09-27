@@ -21,25 +21,45 @@ export default function ParticipantManagement() {
   }, []);
 
   const fetchGuideTreks = async () => {
+    let loadedTreks = [];
     try {
-      const resp = await api.get('/treks', { params: { guide_id: user.id } });
-      setTreks(resp.data);
-      if (resp.data.length > 0) {
-        const id = initialTrekId ? parseInt(initialTrekId) : resp.data[0].id;
-        setSelectedTrekId(id);
-        fetchParticipants(id);
-      }
+      const resp = await api.get('/treks');
+      loadedTreks = resp.data || [];
     } catch (err) {
       console.error("Fetch guide treks error:", err);
-    } finally {
-      setLoading(false);
     }
+
+    try {
+      const saved = localStorage.getItem('trekmate_custom_treks');
+      if (saved) {
+        const customTreks = JSON.parse(saved);
+        customTreks.forEach(ct => {
+          const idx = loadedTreks.findIndex(lt => String(lt.id) === String(ct.id) || lt.name.toLowerCase() === ct.name.toLowerCase());
+          if (idx !== -1) {
+            loadedTreks[idx] = { ...loadedTreks[idx], ...ct };
+          } else {
+            loadedTreks.unshift(ct);
+          }
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    setTreks(loadedTreks);
+
+    if (loadedTreks.length > 0) {
+      const selectedId = initialTrekId ? initialTrekId : loadedTreks[0].id;
+      setSelectedTrekId(selectedId);
+      fetchParticipants(selectedId);
+    }
+    setLoading(false);
   };
 
   const fetchParticipants = async (trekId) => {
     try {
       const resp = await api.get(`/bookings/participants/${trekId}`);
-      setParticipants(resp.data);
+      setParticipants(resp.data || []);
     } catch (err) {
       console.error("Fetch participants error:", err);
     }
@@ -67,7 +87,7 @@ export default function ParticipantManagement() {
 
   if (loading) return <LoadingSpinner message="Loading expedition rosters..." />;
 
-  const currentTrek = treks.find(t => t.id === selectedTrekId);
+  const currentTrek = treks.find(t => String(t.id) === String(selectedTrekId) || t.name === selectedTrekId);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -83,7 +103,7 @@ export default function ParticipantManagement() {
           <select
             value={selectedTrekId || ''}
             onChange={(e) => {
-              const id = parseInt(e.target.value);
+              const id = e.target.value;
               setSelectedTrekId(id);
               fetchParticipants(id);
             }}

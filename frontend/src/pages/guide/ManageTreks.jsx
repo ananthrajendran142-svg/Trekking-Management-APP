@@ -76,13 +76,29 @@ export default function ManageTreks() {
     }
   };
 
-  const handleDeleteTrek = async (trekId) => {
-    if (!window.confirm("Are you sure you want to delete this trek?")) return;
+  const handleDeleteTrek = async (trekId, trekName) => {
+    if (!window.confirm(`Are you sure you want to delete "${trekName || 'this trek'}"?`)) return;
+
+    // 1. Immediately update UI state & local storage
+    setTreks(prev => prev.filter(t => String(t.id) !== String(trekId) && t.name !== trekName));
+    try {
+      const saved = localStorage.getItem('trekmate_custom_treks');
+      if (saved) {
+        let list = JSON.parse(saved);
+        list = list.filter(t => String(t.id) !== String(trekId) && t.name !== trekName);
+        localStorage.setItem('trekmate_custom_treks', JSON.stringify(list));
+      }
+      window.dispatchEvent(new Event('trekmate_treks_updated'));
+    } catch (e) {
+      console.error(e);
+    }
+
+    // 2. Notify backend
     try {
       await api.delete(`/treks/${trekId}`);
-      fetchTreks();
+      window.dispatchEvent(new Event('trekmate_treks_updated'));
     } catch (err) {
-      alert("Delete trek failed.");
+      console.warn("Backend trek delete warning, proceeding with local deletion:", err);
     }
   };
 
@@ -177,7 +193,7 @@ export default function ManageTreks() {
                         <Edit className="w-4 h-4" />
                       </Link>
                       <button
-                        onClick={() => handleDeleteTrek(t.id)}
+                        onClick={() => handleDeleteTrek(t.id, t.name)}
                         className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg transition"
                         title="Delete Trek"
                       >

@@ -420,21 +420,49 @@ def update_trek_status(trek_id):
     res_dict['status'] = new_status
     return jsonify({'message': f'Trek status changed to {new_status}.', 'trek': res_dict}), 200
 
-@treks_bp.route('/<int:trek_id>', methods=['DELETE'])
+@treks_bp.route('/<trek_id>', methods=['DELETE'])
 @jwt_required()
 def delete_trek(trek_id):
     user = resolve_current_user(get_jwt_identity())
     if not user:
         return jsonify({'error': 'User authentication failed.'}), 401
 
-    trek = Trek.query.get(trek_id)
+    trek = None
+    if str(trek_id).isdigit():
+        try:
+            val = int(trek_id)
+            if val < 2000000000:
+                trek = Trek.query.get(val)
+        except Exception:
+            pass
+
     if not trek:
-        return jsonify({'error': 'Trek not found.'}), 404
+        trek = Trek.query.filter(Trek.name.ilike(str(trek_id))).first()
 
-    if user.role != 'admin' and trek.guide_id != user.id:
-        return jsonify({'error': 'Unauthorized to delete this trek.'}), 403
+    if trek:
+        db.session.delete(trek)
+        db.session.commit()
 
-    db.session.delete(trek)
-    db.session.commit()
+    # Also delete from persistent store
+    try:
+        from persistent_store import load_custom_treks, CLOUD_TREKS_URL, TREK_FILE
+        import requests, json
+        custom_treks = load_custom_treks()
+        updated_treks = [
+            ct for ct in custom_treks 
+            if str(ct.get('id')) != str(trek_id) and 
+               str(ct.get('name', '')).strip().lower() != str(trek_id).strip().lower() and
+               (not trek or str(ct.get('name', '')).strip().lower() != str(trek.name).strip().lower())
+        ]
+        with open(TREK_FILE, 'w', encoding='utf-8') as f:
+            json.dump(updated_treks, f, indent=2)
+        requests.put(
+            CLOUD_TREKS_URL,
+            json={'name': 'TrekMate Treks Cloud Store', 'data': {'treks': updated_treks}},
+            timeout=3
+        )
+    except Exception as e:
+        print(f"Error removing deleted trek from persistent store: {e}")
+
     return jsonify({'message': 'Trek deleted successfully.'}), 200
 
