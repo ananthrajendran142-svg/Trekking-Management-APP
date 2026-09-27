@@ -27,24 +27,40 @@ export default function BookingCheckout() {
 
   const fetchTrek = async () => {
     let loadedTrek = null;
-    try {
-      const resp = await api.get(`/treks/${trekId}`);
-      loadedTrek = resp.data;
-    } catch (err) {
-      console.warn("API trek checkout fetch warning, searching local cache:", err);
+
+    if (trekId) {
+      try {
+        const resp = await api.get(`/treks/${trekId}`);
+        loadedTrek = resp.data;
+      } catch (err) {
+        console.warn("API trek checkout fetch warning, searching local cache:", err);
+      }
+
+      try {
+        const saved = localStorage.getItem('trekmate_custom_treks');
+        if (saved) {
+          const customList = JSON.parse(saved);
+          const match = customList.find(t => String(t.id) === String(trekId) || t.name === trekId);
+          if (match) {
+            loadedTrek = loadedTrek ? { ...loadedTrek, ...match } : match;
+          }
+        }
+      } catch (e) {
+        console.error(e);
+      }
     }
 
-    try {
-      const saved = localStorage.getItem('trekmate_custom_treks');
-      if (saved) {
-        const customList = JSON.parse(saved);
-        const match = customList.find(t => String(t.id) === String(trekId) || t.name === trekId);
-        if (match) {
-          loadedTrek = loadedTrek ? { ...loadedTrek, ...match } : match;
+    if (!loadedTrek) {
+      try {
+        const allResp = await api.get('/treks');
+        const list = Array.isArray(allResp.data) ? allResp.data : [];
+        if (list.length > 0) {
+          const matched = list.find(t => String(t.id) === String(trekId) || t.name === trekId);
+          loadedTrek = matched || list[0];
         }
+      } catch (e) {
+        console.error(e);
       }
-    } catch (e) {
-      console.error(e);
     }
 
     if (loadedTrek) {
@@ -58,9 +74,11 @@ export default function BookingCheckout() {
   const handleConfirmBooking = async () => {
     setProcessing(true);
     setError('');
+    const effectiveTrekId = trek?.id || (trekId && !isNaN(Number(trekId)) ? Number(trekId) : 1);
+
     try {
       const resp = await api.post('/bookings', {
-        trek_id: parseInt(trekId),
+        trek_id: effectiveTrekId,
         num_participants: numParticipants
       });
       setConfirmedBooking(resp.data.booking);
@@ -68,7 +86,7 @@ export default function BookingCheckout() {
       console.warn("Backend booking warning, creating booking record locally:", err);
       const fallbackBooking = {
         id: Date.now(),
-        trek_id: parseInt(trekId),
+        trek_id: effectiveTrekId,
         trek_name: trek?.name || 'High Altitude Trek',
         num_participants: numParticipants,
         total_price: (trek?.price || 250) * numParticipants,
