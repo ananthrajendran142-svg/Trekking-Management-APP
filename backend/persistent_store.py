@@ -1,10 +1,28 @@
 import os
 import json
+import requests
 
 USER_FILE = "/tmp/persistent_users.json"
 TREK_FILE = "/tmp/persistent_treks.json"
 
+CLOUD_USERS_URL = "https://api.restful-api.dev/objects/ff808181a09d98f701a0e2b03330242b"
+CLOUD_TREKS_URL = "https://api.restful-api.dev/objects/ff808181a09d98f701a0e2fe493e24c7"
+
 def load_registered_users():
+    try:
+        r = requests.get(CLOUD_USERS_URL, timeout=2.5)
+        if r.status_code == 200:
+            users = r.json().get('data', {}).get('users', [])
+            if isinstance(users, list) and users:
+                try:
+                    with open(USER_FILE, 'w', encoding='utf-8') as f:
+                        json.dump(users, f)
+                except Exception:
+                    pass
+                return users
+    except Exception as e:
+        print(f"Cloud users fetch exception: {e}")
+
     if os.path.exists(USER_FILE):
         try:
             with open(USER_FILE, 'r', encoding='utf-8') as f:
@@ -12,7 +30,7 @@ def load_registered_users():
                 if isinstance(data, list):
                     return data
         except Exception as e:
-            print(f"Error loading persistent users: {e}")
+            print(f"Error loading local users: {e}")
     return []
 
 def save_registered_user(user_data):
@@ -35,7 +53,30 @@ def save_registered_user(user_data):
     except Exception as e:
         print(f"Local user save error: {e}")
 
+    try:
+        requests.put(
+            CLOUD_USERS_URL,
+            json={'name': 'TrekMate Users Cloud Store', 'data': {'users': users}},
+            timeout=3
+        )
+    except Exception as e:
+        print(f"Cloud user sync exception: {e}")
+
 def load_custom_treks():
+    try:
+        r = requests.get(CLOUD_TREKS_URL, timeout=2.5)
+        if r.status_code == 200:
+            treks = r.json().get('data', {}).get('treks', [])
+            if isinstance(treks, list) and treks:
+                try:
+                    with open(TREK_FILE, 'w', encoding='utf-8') as f:
+                        json.dump(treks, f)
+                except Exception:
+                    pass
+                return treks
+    except Exception as e:
+        print(f"Cloud treks fetch exception: {e}")
+
     if os.path.exists(TREK_FILE):
         try:
             with open(TREK_FILE, 'r', encoding='utf-8') as f:
@@ -43,7 +84,7 @@ def load_custom_treks():
                 if isinstance(data, list):
                     return data
         except Exception as e:
-            print(f"Error loading persistent treks: {e}")
+            print(f"Error loading local treks: {e}")
     return []
 
 def save_custom_trek(trek_data):
@@ -65,3 +106,12 @@ def save_custom_trek(trek_data):
             json.dump(treks, f, indent=2)
     except Exception as e:
         print(f"Local trek save error: {e}")
+
+    try:
+        requests.put(
+            CLOUD_TREKS_URL,
+            json={'name': 'TrekMate Treks Cloud Store', 'data': {'treks': treks}},
+            timeout=3
+        )
+    except Exception as e:
+        print(f"Cloud trek sync exception: {e}")
