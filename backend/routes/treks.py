@@ -37,6 +37,38 @@ def get_treks():
     if max_price:
         query = query.filter(Trek.price <= max_price)
 
+    # Auto-restore custom published treks on cold start
+    try:
+        from persistent_store import load_custom_treks
+        custom_treks = load_custom_treks()
+        for c_t in custom_treks:
+            if c_t.get('name') and not Trek.query.filter_by(name=c_t['name']).first():
+                t_obj = Trek(
+                    name=c_t['name'],
+                    location=c_t.get('location', 'High Altitude Region'),
+                    latitude=c_t.get('latitude', 32.2432),
+                    longitude=c_t.get('longitude', 77.1892),
+                    difficulty=c_t.get('difficulty', 'Moderate'),
+                    duration=c_t.get('duration', '3 Days'),
+                    distance=c_t.get('distance', '20 km'),
+                    max_participants=c_t.get('max_participants', 15),
+                    price=c_t.get('price', 250.0),
+                    start_date=c_t.get('start_date', ''),
+                    end_date=c_t.get('end_date', ''),
+                    meeting_point=c_t.get('meeting_point', ''),
+                    required_equipment=c_t.get('required_equipment', ''),
+                    safety_instructions=c_t.get('safety_instructions', ''),
+                    description=c_t.get('description', ''),
+                    itinerary=c_t.get('itinerary', ''),
+                    status=c_t.get('status', 'published'),
+                    image_url=c_t.get('image_url', ''),
+                    guide_id=c_t.get('guide_id', 2)
+                )
+                db.session.add(t_obj)
+        db.session.commit()
+    except Exception as e:
+        print(f"Trek restore error: {e}")
+
     treks = query.order_by(Trek.id.desc()).all()
     return jsonify([t.to_dict() for t in treks]), 200
 
@@ -132,6 +164,13 @@ def create_trek():
 
     db.session.add(trek)
     db.session.commit()
+
+    # Save to persistent trek store
+    try:
+        from persistent_store import save_custom_trek
+        save_custom_trek(trek.to_dict())
+    except Exception as e:
+        print(f"Error saving trek to persistent store: {e}")
 
     return jsonify({'message': 'Trek created successfully.', 'trek': trek.to_dict()}), 201
 

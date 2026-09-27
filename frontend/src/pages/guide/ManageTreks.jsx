@@ -16,14 +16,30 @@ export default function ManageTreks() {
   }, []);
 
   const fetchTreks = async () => {
+    let loadedTreks = [];
     try {
-      const resp = await api.get('/treks', { params: { guide_id: user.id } });
-      setTreks(resp.data);
+      const resp = await api.get('/treks', { params: { guide_id: user?.id } });
+      loadedTreks = resp.data || [];
     } catch (err) {
-      console.error("Fetch managed treks error:", err);
-    } finally {
-      setLoading(false);
+      console.warn("Fetch managed treks warning, falling back to local:", err);
     }
+
+    try {
+      const saved = localStorage.getItem('trekmate_custom_treks');
+      if (saved) {
+        const customTreks = JSON.parse(saved);
+        customTreks.forEach(ct => {
+          if (!loadedTreks.some(lt => String(lt.id) === String(ct.id) || lt.name.toLowerCase() === ct.name.toLowerCase())) {
+            loadedTreks.unshift(ct);
+          }
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    setTreks(loadedTreks);
+    setLoading(false);
   };
 
   const handleStatusChange = async (trekId, newStatus) => {

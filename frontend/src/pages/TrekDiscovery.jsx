@@ -22,6 +22,7 @@ export default function TrekDiscovery() {
 
   const fetchTreks = async () => {
     setLoading(true);
+    let loadedTreks = [];
     try {
       const params = {};
       if (searchParams.get('search')) params.search = searchParams.get('search');
@@ -31,12 +32,27 @@ export default function TrekDiscovery() {
       if (searchParams.get('max_price')) params.max_price = searchParams.get('max_price');
 
       const resp = await api.get('/treks', { params });
-      setTreks(resp.data);
+      loadedTreks = resp.data || [];
     } catch (err) {
-      console.error("Trek discovery error:", err);
-    } finally {
-      setLoading(false);
+      console.warn("Trek discovery API warning, falling back to cached treks:", err);
     }
+
+    try {
+      const saved = localStorage.getItem('trekmate_custom_treks');
+      if (saved) {
+        const customTreks = JSON.parse(saved);
+        customTreks.forEach(ct => {
+          if (!loadedTreks.some(lt => String(lt.id) === String(ct.id) || lt.name.toLowerCase() === ct.name.toLowerCase())) {
+            loadedTreks.unshift(ct);
+          }
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    setTreks(loadedTreks);
+    setLoading(false);
   };
 
   const applyFilters = (e) => {

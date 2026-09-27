@@ -17,18 +17,34 @@ export default function GuideDashboard() {
   }, []);
 
   const fetchGuideData = async () => {
+    let loadedTreks = [];
     try {
       const [treksResp, sosResp] = await Promise.all([
-        api.get('/treks', { params: { guide_id: user.id } }),
-        api.get('/sos')
+        api.get('/treks', { params: { guide_id: user?.id } }).catch(() => ({ data: [] })),
+        api.get('/sos').catch(() => ({ data: [] }))
       ]);
-      setTreks(treksResp.data);
-      setSosAlerts(sosResp.data.filter(a => a.status === 'active'));
+      loadedTreks = treksResp.data || [];
+      setSosAlerts((sosResp.data || []).filter(a => a.status === 'active'));
     } catch (err) {
-      console.error("Guide dashboard fetch error:", err);
-    } finally {
-      setLoading(false);
+      console.warn("Guide dashboard fetch warning:", err);
     }
+
+    try {
+      const saved = localStorage.getItem('trekmate_custom_treks');
+      if (saved) {
+        const customTreks = JSON.parse(saved);
+        customTreks.forEach(ct => {
+          if (!loadedTreks.some(lt => String(lt.id) === String(ct.id) || lt.name.toLowerCase() === ct.name.toLowerCase())) {
+            loadedTreks.unshift(ct);
+          }
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    setTreks(loadedTreks);
+    setLoading(false);
   };
 
   const activeTreks = treks.filter(t => t.status === 'active');

@@ -25,20 +25,39 @@ export default function TrekDetails() {
 
   const fetchTrekDetails = async () => {
     setLoading(true);
+    let loadedTrek = null;
+
     try {
-      const [trekResp, weatherResp, reviewsResp] = await Promise.all([
-        api.get(`/treks/${id}`),
-        api.get(`/weather/${id}`),
-        api.get(`/reviews/${id}`)
-      ]);
-      setTrek(trekResp.data);
-      setWeather(weatherResp.data);
-      setReviews(reviewsResp.data);
+      const trekResp = await api.get(`/treks/${id}`);
+      loadedTrek = trekResp.data;
     } catch (err) {
-      console.error("Fetch trek details error:", err);
-    } finally {
-      setLoading(false);
+      console.warn("Trek details API warning, searching local cache:", err);
+      try {
+        const saved = localStorage.getItem('trekmate_custom_treks');
+        if (saved) {
+          const customList = JSON.parse(saved);
+          loadedTrek = customList.find(t => String(t.id) === String(id) || t.name === id);
+        }
+      } catch (e) {
+        console.error(e);
+      }
     }
+
+    if (loadedTrek) {
+      setTrek(loadedTrek);
+      try {
+        const [weatherResp, reviewsResp] = await Promise.all([
+          api.get(`/weather/${id}`).catch(() => ({ data: null })),
+          api.get(`/reviews/${id}`).catch(() => ({ data: [] }))
+        ]);
+        if (weatherResp.data) setWeather(weatherResp.data);
+        if (reviewsResp.data) setReviews(reviewsResp.data);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    setLoading(false);
   };
 
   const handleBookNow = () => {
