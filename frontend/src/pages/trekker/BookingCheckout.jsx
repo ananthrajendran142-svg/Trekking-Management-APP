@@ -76,24 +76,38 @@ export default function BookingCheckout() {
     setError('');
     const effectiveTrekId = trek?.id || (trekId && !isNaN(Number(trekId)) ? Number(trekId) : 1);
 
+    const newBookingObj = {
+      id: Date.now(),
+      trek_id: effectiveTrekId,
+      trek_name: trek?.name || 'High Altitude Trek',
+      user_id: user?.id || 1,
+      user_name: user?.name || 'Trekker',
+      user_email: user?.email || 'trekker@trekmate.com',
+      user_phone: user?.phone || '+1 800-TREKMATE',
+      num_participants: numParticipants,
+      total_price: (trek?.price || 250) * numParticipants,
+      booking_status: 'upcoming',
+      payment_status: trek?.price === 0 ? 'paid' : 'pending',
+      check_in_status: 'pending'
+    };
+
+    try {
+      const saved = localStorage.getItem('trekmate_custom_bookings');
+      let bList = saved ? JSON.parse(saved) : [];
+      bList.unshift(newBookingObj);
+      localStorage.setItem('trekmate_custom_bookings', JSON.stringify(bList));
+      window.dispatchEvent(new Event('trekmate_treks_updated'));
+    } catch (e) {}
+
     try {
       const resp = await api.post('/bookings', {
         trek_id: effectiveTrekId,
         num_participants: numParticipants
       });
-      setConfirmedBooking(resp.data.booking);
+      setConfirmedBooking(resp.data.booking || newBookingObj);
     } catch (err) {
-      console.warn("Backend booking warning, creating booking record locally:", err);
-      const fallbackBooking = {
-        id: Date.now(),
-        trek_id: effectiveTrekId,
-        trek_name: trek?.name || 'High Altitude Trek',
-        num_participants: numParticipants,
-        total_price: (trek?.price || 250) * numParticipants,
-        booking_status: 'upcoming',
-        payment_status: trek?.price === 0 ? 'paid' : 'pending'
-      };
-      setConfirmedBooking(fallbackBooking);
+      console.warn("Backend booking warning, using local booking record:", err);
+      setConfirmedBooking(newBookingObj);
     } finally {
       setProcessing(false);
     }

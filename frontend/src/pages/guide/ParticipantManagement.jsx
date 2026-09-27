@@ -57,12 +57,46 @@ export default function ParticipantManagement() {
   };
 
   const fetchParticipants = async (trekId) => {
+    let pList = [];
     try {
       const resp = await api.get(`/bookings/participants/${trekId}`);
-      setParticipants(resp.data || []);
+      pList = resp.data || [];
     } catch (err) {
       console.error("Fetch participants error:", err);
     }
+
+    // Merge any local custom bookings matching this trek
+    try {
+      const saved = localStorage.getItem('trekmate_custom_bookings');
+      if (saved) {
+        const customBookings = JSON.parse(saved);
+        customBookings.forEach(cb => {
+          if (String(cb.trek_id) === String(trekId) || (cb.trek_name && cb.trek_name.toLowerCase() === String(trekId).toLowerCase())) {
+            if (!pList.some(p => String(p.booking_id) === String(cb.id) || String(p.id) === String(cb.id))) {
+              pList.push({
+                id: cb.id,
+                booking_id: cb.id,
+                trek_id: trekId,
+                user_id: cb.user_id || 1,
+                user_name: cb.user_name || 'Trekker',
+                user_email: cb.user_email || 'trekker@trekmate.com',
+                user_phone: cb.user_phone || '+1 800-TREKMATE',
+                payment_status: cb.payment_status || 'pending',
+                booking_status: cb.booking_status || 'upcoming',
+                check_in_status: cb.check_in_status || 'pending',
+                location_status: 'active',
+                total_price: cb.total_price || 250,
+                num_participants: cb.num_participants || 1
+              });
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+
+    setParticipants(pList);
   };
 
   const handleUpdateCheckIn = async (participantId, newStatus) => {
