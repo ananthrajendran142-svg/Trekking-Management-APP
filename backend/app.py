@@ -58,12 +58,13 @@ def create_app(config_class=Config):
 
     return app
 
+app = create_app()
+
 if __name__ == '__main__':
-    app = create_app()
-    # Seed initial data automatically if database is fresh
     with app.app_context():
         from seed import seed_database
         seed_database()
 
     print("Starting TrekMate Backend Server on port 5000...")
     socketio.run(app, host='0.0.0.0', port=5000, debug=True, allow_unsafe_werkzeug=True)
+
