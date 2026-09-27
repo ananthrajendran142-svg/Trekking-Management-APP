@@ -9,7 +9,8 @@ import { Star, CheckCircle2, Lock, Award, MessageSquare, Compass, Send, ShieldCh
 export default function TrekkerReviews() {
   const { user } = useAuth();
   const [searchParams] = useSearchParams();
-  const targetTrekId = searchParams.get('trek_id') ? parseInt(searchParams.get('trek_id')) : null;
+  const targetTrekParam = searchParams.get('trek_id');
+  const targetTrekId = targetTrekParam ? targetTrekParam : null;
 
   const [bookings, setBookings] = useState([]);
   const [myReviews, setMyReviews] = useState([]);
@@ -23,19 +24,31 @@ export default function TrekkerReviews() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+    const handleUpdate = () => fetchData();
+    window.addEventListener('trekmate_treks_updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('trekmate_treks_updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, [searchParams]);
 
   const fetchData = async () => {
     let bkList = [];
     let revList = [];
+    let apiTreks = [];
     try {
-      const [bookingsResp, reviewsResp] = await Promise.all([
+      const [bookingsResp, reviewsResp, treksResp] = await Promise.all([
         api.get('/bookings').catch(() => ({ data: [] })),
-        api.get('/reviews/my').catch(() => ({ data: [] }))
+        api.get('/reviews/my').catch(() => ({ data: [] })),
+        api.get('/treks').catch(() => ({ data: [] }))
       ]);
 
       bkList = bookingsResp.data || [];
       revList = reviewsResp.data || [];
+      apiTreks = treksResp.data || [];
     } catch (err) {
       console.error("Fetch reviews data error:", err);
     }
@@ -64,17 +77,26 @@ export default function TrekkerReviews() {
       }
     } catch (e) {}
 
+    const allTreks = [...apiTreks, ...customTreks];
+
     // Map completed status across bookings
     const completedMap = new Map();
-    customTreks.forEach(ct => {
+    allTreks.forEach(ct => {
       if (ct.status === 'completed') {
-        completedMap.set(String(ct.id), ct);
-        completedMap.set(ct.name, ct);
+        if (ct.id != null) completedMap.set(String(ct.id), ct);
+        if (ct.name) {
+          completedMap.set(ct.name, ct);
+          completedMap.set(ct.name.toLowerCase(), ct);
+        }
       }
     });
 
     bkList = bkList.map(b => {
-      if (completedMap.has(String(b.trek_id)) || completedMap.has(b.trek_name)) {
+      if (
+        completedMap.has(String(b.trek_id)) ||
+        (b.trek_name && completedMap.has(b.trek_name)) ||
+        (b.trek_name && completedMap.has(b.trek_name.toLowerCase()))
+      ) {
         if (b.booking_status !== 'cancelled') {
           return { ...b, booking_status: 'completed' };
         }
@@ -82,20 +104,46 @@ export default function TrekkerReviews() {
       return b;
     });
 
-    // If targetTrekId exists and target trek is completed but not in bkList, synthesize a booking entry
-    if (targetTrekId && !bkList.some(b => String(b.trek_id) === String(targetTrekId))) {
-      const matchedTrek = customTreks.find(ct => String(ct.id) === String(targetTrekId));
-      bkList.push({
-        id: targetTrekId,
-        trek_id: targetTrekId,
-        trek_name: matchedTrek ? matchedTrek.name : `Expedition #${targetTrekId}`,
-        trek_location: matchedTrek ? matchedTrek.location : 'Himalayas',
-        booking_status: 'completed',
-        payment_status: 'paid',
-        num_participants: 1,
-        total_price: matchedTrek ? matchedTrek.price : 250
-      });
+    // If targetTrekId exists, find matching booking or synthesize a completed booking entry
+    if (targetTrekId) {
+      const targetStr = String(targetTrekId);
+      let matchedBooking = bkList.find(b => String(b.trek_id) === targetStr || (b.trek_name && b.trek_name.toLowerCase() === targetStr.toLowerCase()));
+      
+      if (matchedBooking) {
+        matchedBooking.booking_status = 'completed';
+      } else {
+        const matchedTrek = allTreks.find(ct => String(ct.id) === targetStr || (ct.name && ct.name.toLowerCase() === targetStr.toLowerCase()));
+        bkList.push({
+          id: targetTrekId,
+          trek_id: targetTrekId,
+          trek_name: matchedTrek ? matchedTrek.name : `Expedition #${targetTrekId}`,
+          trek_location: matchedTrek ? matchedTrek.location : 'High Altitude Region',
+          booking_status: 'completed',
+          payment_status: 'paid',
+          num_participants: 1,
+          total_price: matchedTrek ? matchedTrek.price : 250
+        });
+      }
     }
+
+    // Also synthesize completed bookings for any completed treks if bkList has no completed booking for them
+    allTreks.forEach(ct => {
+      if (ct.status === 'completed') {
+        const exists = bkList.some(b => String(b.trek_id) === String(ct.id) || (b.trek_name && b.trek_name.toLowerCase() === ct.name.toLowerCase()));
+        if (!exists) {
+          bkList.push({
+            id: ct.id || Date.now(),
+            trek_id: ct.id || Date.now(),
+            trek_name: ct.name,
+            trek_location: ct.location || 'High Altitude Region',
+            booking_status: 'completed',
+            payment_status: 'paid',
+            num_participants: 1,
+            total_price: ct.price || 250
+          });
+        }
+      }
+    });
 
     setBookings(bkList);
     setMyReviews(revList);
@@ -103,7 +151,7 @@ export default function TrekkerReviews() {
     // Populate form initial state with existing reviews
     const initialForms = {};
     bkList.forEach(b => {
-      const existingRev = revList.find(r => String(r.trek_id) === String(b.trek_id));
+      const existingRev = revList.find(r => String(r.trek_id) === String(b.trek_id) || String(r.trek_id) === String(b.id));
       initialForms[b.trek_id] = {
         rating: existingRev ? existingRev.rating : 5,
         comment: existingRev ? existingRev.comment : ''
@@ -178,7 +226,7 @@ export default function TrekkerReviews() {
   if (loading) return <LoadingSpinner message="Loading completed trek review forms..." />;
 
   const completedBookings = bookings.filter(b => b.booking_status === 'completed');
-  const targetBooking = targetTrekId ? bookings.find(b => b.trek_id === targetTrekId) : null;
+  const targetBooking = targetTrekId ? bookings.find(b => String(b.trek_id) === String(targetTrekId) || (b.trek_name && b.trek_name.toLowerCase() === String(targetTrekId).toLowerCase())) : null;
   const isTargetCompleted = targetBooking && targetBooking.booking_status === 'completed';
 
   return (
@@ -244,9 +292,9 @@ export default function TrekkerReviews() {
         {completedBookings.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {completedBookings.map(b => {
-              const existingRev = myReviews.find(r => r.trek_id === b.trek_id);
+              const existingRev = myReviews.find(r => String(r.trek_id) === String(b.trek_id));
               const form = forms[b.trek_id] || { rating: 5, comment: '' };
-              const isSelected = targetTrekId === b.trek_id;
+              const isSelected = targetTrekId && String(targetTrekId) === String(b.trek_id);
 
               return (
                 <div

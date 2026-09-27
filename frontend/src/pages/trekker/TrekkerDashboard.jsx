@@ -15,16 +15,59 @@ export default function TrekkerDashboard() {
 
   useEffect(() => {
     fetchDashboardData();
+    const handleUpdate = () => fetchDashboardData();
+    window.addEventListener('trekmate_treks_updated', handleUpdate);
+    window.addEventListener('focus', handleUpdate);
+    return () => {
+      window.removeEventListener('trekmate_treks_updated', handleUpdate);
+      window.removeEventListener('focus', handleUpdate);
+    };
   }, []);
 
   const fetchDashboardData = async () => {
     try {
       const [bookResp, notifResp] = await Promise.all([
-        api.get('/bookings'),
-        api.get('/notifications')
+        api.get('/bookings').catch(() => ({ data: [] })),
+        api.get('/notifications').catch(() => ({ data: [] }))
       ]);
-      setBookings(bookResp.data);
-      setNotifications(notifResp.data.slice(0, 5));
+
+      let bkList = bookResp.data || [];
+
+      // Read custom treks to see which treks are marked completed
+      let customTreks = [];
+      try {
+        const savedTreks = localStorage.getItem('trekmate_custom_treks');
+        if (savedTreks) {
+          customTreks = JSON.parse(savedTreks);
+        }
+      } catch (e) {}
+
+      const completedMap = new Map();
+      customTreks.forEach(ct => {
+        if (ct.status === 'completed') {
+          if (ct.id != null) completedMap.set(String(ct.id), ct);
+          if (ct.name) {
+            completedMap.set(ct.name, ct);
+            completedMap.set(ct.name.toLowerCase(), ct);
+          }
+        }
+      });
+
+      bkList = bkList.map(b => {
+        if (
+          completedMap.has(String(b.trek_id)) ||
+          (b.trek_name && completedMap.has(b.trek_name)) ||
+          (b.trek_name && completedMap.has(b.trek_name.toLowerCase()))
+        ) {
+          if (b.booking_status !== 'cancelled') {
+            return { ...b, booking_status: 'completed' };
+          }
+        }
+        return b;
+      });
+
+      setBookings(bkList);
+      setNotifications((notifResp.data || []).slice(0, 5));
     } catch (err) {
       console.error("Trekker dashboard fetch error:", err);
     } finally {
