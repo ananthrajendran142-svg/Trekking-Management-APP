@@ -34,6 +34,7 @@ def _run_seed():
 
     # Seed / Update default Trekkers
     trekkers_data = [
+      {'name': 'Ananth', 'email': 'ananthrajendran142@gmail.com', 'phone': '+91 98765-43210'},
       {'name': 'Alex Mercer', 'email': 'trekker@trekmate.com', 'phone': '+1 555-0147'},
       {'name': 'Priya Sharma', 'email': 'priya@trekmate.com', 'phone': '+91 98123-45678'},
       {'name': 'Rohan Gupta', 'email': 'rohan@trekmate.com', 'phone': '+91 97654-32109'}
