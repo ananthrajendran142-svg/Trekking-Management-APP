@@ -96,7 +96,7 @@ export default function GuideMessages() {
     setSending(true);
 
     try {
-      // 1. Post to REST API (ensures DB save & broadcasts to room)
+      // 1. Post to REST API (ensures DB save & broadcasts to room via Socket.IO)
       const resp = await api.post(`/chat/${selectedTrekId}/send`, {
         content,
         sender_email: user?.email,
@@ -104,21 +104,12 @@ export default function GuideMessages() {
       });
       const savedMsg = resp.data;
 
-      // 2. Append to local state if not already delivered by socket
+      // 2. Append to local state if not already delivered by socket event
       setMessages(prev => {
         if (prev.some(m => m.id === savedMsg.id)) return prev;
         return [...prev, savedMsg];
       });
 
-      // 3. Emit via Socket.IO if active
-      if (socket && socket.connected) {
-        socket.emit('send_chat', {
-          trek_id: selectedTrekId,
-          sender_id: user?.id,
-          sender_email: user?.email,
-          content
-        });
-      }
       scrollToBottom();
     } catch (err) {
       console.error("Send chat error:", err);

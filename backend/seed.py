@@ -69,13 +69,19 @@ def _run_seed():
                     role=c_user.get('role', 'trekker'),
                     status='active'
                 )
-                if 'password_hash' in c_user:
+                if c_user.get('password_hash'):
                     u.password_hash = c_user['password_hash']
-                elif 'password' in c_user:
+                elif c_user.get('password'):
                     u.set_password(c_user['password'])
+                else:
+                    u.set_password('trekker123')
                 db.session.add(u)
+            else:
+                if not u.password_hash:
+                    u.set_password('trekker123')
         db.session.commit()
     except Exception as e:
+        db.session.rollback()
         print(f"Custom user restore error: {e}")
 
     # Seed AI Knowledge Base Documents

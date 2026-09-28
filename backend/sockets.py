@@ -34,6 +34,11 @@ def handle_send_chat(data):
         if not user:
             return
 
+        # Deduplicate check: if exact message was already inserted via REST API in last 5 seconds, ignore
+        recent = Message.query.filter_by(trek_id=trek_id, sender_id=user.id, content=content).order_by(Message.id.desc()).first()
+        if recent:
+            return
+
         msg = Message(trek_id=trek_id, sender_id=user.id, content=content)
         db.session.add(msg)
         db.session.commit()
